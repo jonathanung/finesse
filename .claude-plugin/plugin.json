@@ -1,6 +1,6 @@
 {
   "name": "finesse",
   "description": "Prompt planner and validator for ralph-loop — transforms vague tasks into battle-tested autonomous development prompts",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "author": { "name": "Jonathan Ung" }
 }

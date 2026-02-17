@@ -34,7 +34,7 @@ If any destructive action is plausible and there's no guardrail: **FAIL**.
 
 ### 4. Iteration Limit Reasonableness
 - Is the proposed ralph-loop `--max-iterations` value reasonable for the task scope?
-- Simple bug fix: 5-10. Feature build: 10-20. Large feature: 15-25. Over 30: likely needs decomposition.
+- Simple bug fix: 5-10. Feature build: 10-20. Large feature: 15-25. Over 25: likely needs decomposition into separate sequential ralph runs.
 
 ### 5. Blast Radius Assessment
 What's the worst realistic outcome if the loop goes wrong? Flag anything that could:
