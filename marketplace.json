@@ -1,0 +1,20 @@
+{
+  "name": "jonathanung-plugins",
+  "version": "1.0.0",
+  "description": "Meta-prompting tools for iterative development",
+  "owner": {
+    "name": "Jonathan Ung",
+    "url": "https://github.com/jonathanung"
+  },
+  "plugins": [
+    {
+      "name": "finesse",
+      "source": ".",
+      "description": "Prompt planner and validator for ralph-loop — turns vague tasks into validated autonomous development prompts",
+      "version": "0.1.0",
+      "category": "productivity",
+      "tags": ["automation", "loops", "meta-prompting"],
+      "repository": "https://github.com/jonathanung/finesse"
+    }
+  ]
+}
