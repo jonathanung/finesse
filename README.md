@@ -33,21 +33,13 @@ You → /finesse "vague idea"
 ## Installation
 
 ```bash
-claude plugin add jonathanung/finesse
-```
-
-Or add to your project's `.claude/settings.json`:
-
-```json
-{
-  "plugins": ["jonathanung/finesse"]
-}
+/plugin marketplace add jonathanung/finesse
 ```
 
 **Prerequisite:** The ralph-loop plugin must also be installed to run the generated prompts:
 
 ```bash
-claude plugin add anthropics/ralph-loop
+/plugin marketplace add anthropics/claude-code-plugins
 ```
 
 ## Commands
@@ -222,8 +214,8 @@ If a task needs more than 25 iterations, Finesse recommends decomposing it into 
 ## Quick Start
 
 ```bash
-claude plugin add jonathanung/finesse
-claude plugin add anthropics/ralph-loop
+/plugin marketplace add jonathanung/finesse
+/plugin marketplace add anthropics/claude-code-plugins
 /finesse <describe any task>
 ```
 
