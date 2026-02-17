@@ -29,6 +29,7 @@ Determine the task type from the user's description:
 | **refactor** | "Refactor", "clean up", "reorganize", "restructure", "improve code", "tech debt" |
 | **testing** | "Add tests", "test coverage", "write tests", "validate", "QA" |
 | **performance** | "Slow", "optimize", "performance", "speed up", "bottleneck", "latency" |
+| **research** | "Research", "investigate", "compare", "evaluate", "analyze", "study", "survey", "document", "explore options", "understand", "assessment", "trade-offs", "pros and cons", "spike", "feasibility" |
 
 If ambiguous or the task matches multiple types, ask the user which type best describes their task. Do NOT guess.
 
@@ -47,6 +48,8 @@ Once classified, follow the corresponding workflow from the **task-workflows** s
 ### Testing: T1 Coverage Analysis → T2 Test Strategy → T3 Clarifying Questions → Plan → Validate → Present
 
 ### Performance: P1 Problem Definition → P2 Profiling & Analysis → P3 Optimization Strategy → Plan → Validate → Present
+
+### Research: RE1 Goal Definition → RE2 Source Identification → RE3 Research Plan & Questions → RE4 Investigation Strategy → Plan → Validate → Present
 
 ---
 

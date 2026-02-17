@@ -1,5 +1,5 @@
 ---
-description: "Task-type-specific planning workflows for Finesse — defines phases for features, bug fixes, chores, testing, and performance work"
+description: "Task-type-specific planning workflows for Finesse — defines phases for features, bug fixes, chores, testing, performance, and research work"
 ---
 
 # Task Workflows
@@ -19,6 +19,7 @@ Classify the user's task into one of these types based on their description:
 | **refactor** | "Refactor", "clean up", "reorganize", "restructure", "improve code", "tech debt" |
 | **testing** | "Add tests", "test coverage", "write tests", "validate", "QA" |
 | **performance** | "Slow", "optimize", "performance", "speed up", "bottleneck", "latency" |
+| **research** | "Research", "investigate", "compare", "evaluate", "analyze", "study", "survey", "document", "explore options", "understand", "assessment", "trade-offs", "pros and cons", "spike", "feasibility" |
 
 If ambiguous, ask the user. Do not guess.
 
@@ -349,3 +350,111 @@ Ralph-loop iterations:
 ### Phase 5: Validation + Presentation
 
 Validate and present.
+
+---
+
+## Research Workflow (7 phases)
+
+### Phase 1: Research Goal Definition
+
+**Goal**: Clarify what the research should answer and what the deliverable looks like.
+
+Gather from the user:
+- What is the research question or topic?
+- What is the deliverable format? (comparison doc, architecture decision record, feasibility study, survey of approaches)
+- What are the scope boundaries? (which parts of the codebase, which technologies, what's out of scope)
+- How deep should the investigation go? (surface-level overview vs deep-dive analysis)
+- Who is the audience? (team members, future self, stakeholders)
+
+Do NOT proceed until the research question is specific enough to have a clear "done" state.
+
+### Phase 2: Source Identification
+
+**Goal**: Map codebase sources, architecture, and prior decisions related to the research topic.
+
+Launch 2-3 **code-explorer** agents in parallel:
+- Agent 1: "Find all code, configuration, and documentation related to [research topic]. Identify relevant files, patterns, and conventions. Return file paths and key excerpts."
+- Agent 2: "Map the architecture and design decisions in [relevant area]. Identify how the current implementation works, what trade-offs were made, and where decisions are documented (comments, ADRs, READMEs)."
+- Agent 3 (if applicable): "Search for prior art, alternative approaches, or related implementations in this codebase. Look for TODOs, FIXMEs, or comments referencing [topic]. Check git history for relevant discussions."
+
+After agents return, READ all identified files. Build a source inventory before proceeding.
+
+Present a summary:
+- Sources found and their relevance
+- Prior decisions or context discovered
+- Gaps where external research may be needed
+
+### Phase 3: Research Plan & Clarifying Questions
+
+**Goal**: Propose a research outline and resolve ambiguities before investigation begins.
+
+Based on source identification, propose:
+- A document outline with specific sections (e.g., "Background", "Approach A: ...", "Approach B: ...", "Comparison Matrix", "Recommendation")
+- Expected length and depth per section
+- What can be answered from the codebase vs what requires external knowledge
+
+Present ALL clarifying questions:
+- Should the research cover [specific subtopic]?
+- How should trade-offs be weighted? (e.g., performance vs simplicity)
+- Are there constraints or preferences that should bias the analysis?
+- Is there a preferred format for the deliverable?
+
+**Wait for answers and outline confirmation before proceeding.**
+
+### Phase 4: Investigation Strategy
+
+**Goal**: Define what to investigate for each section and how to verify findings.
+
+For each section in the confirmed outline:
+- What specific questions does this section answer?
+- What evidence is needed? (code examples, benchmarks, documentation references)
+- What commands or searches will surface the evidence?
+- What rabbit holes should be avoided? (tangential topics, excessive depth on one area)
+
+Key constraints:
+- Max 2 investigation iterations per section — prevents deep-diving one topic endlessly
+- Every claim must cite evidence: file:line, command output, or URL
+- Read-only approach to source code — research must NOT modify any existing files
+
+Present the investigation strategy. Confirm with user.
+
+### Phase 5: Plan Construction
+
+**Goal**: Build the ralph-loop prompt with research-specific adaptations.
+
+Build the ralph-loop prompt focused on:
+- Cold start: check if the deliverable file exists, read it, determine what sections are complete vs remaining, resume from where the document left off
+- Ordered phases: one phase per document section, in outline order
+- Verification via structural commands:
+  - `grep -c "^## " <deliverable>` — check section count matches outline
+  - `wc -w <deliverable>` — check minimum word count is met
+  - `grep -c "TODO\|PLACEHOLDER\|TBD" <deliverable>` — check no placeholders remain
+  - `grep -c "file:.*line\|\.rb:\|\.ts:\|\.py:\|http" <deliverable>` — check evidence citations exist
+  - Section existence checks via `grep "^## <Section Name>" <deliverable>`
+- Scope constraints: the ONLY file created or modified is the deliverable document — source code is strictly read-only
+- Research-specific guardrails:
+  - "Do NOT modify any source code files — the deliverable document is the only writable file"
+  - "Every claim must cite evidence: file:line reference, command output, or URL"
+  - "Do NOT spend more than 2 iterations on any single section — move on and mark incomplete sections with TODO"
+  - "Do NOT add filler, preamble, or restating the research question — every sentence must add information"
+  - "Do NOT go down rabbit holes — if a subtopic is tangential, note it as 'Out of Scope' and move on"
+  - "Cross-reference prior sections when building on earlier findings"
+- Completion criteria:
+  - All sections from the outline are present
+  - No TODO, PLACEHOLDER, or TBD markers remain
+  - Evidence citations present in every substantive section
+  - Synthesis/recommendation section cross-references prior sections
+  - Minimum word count met (defined during Phase 3)
+
+Ralph-loop iterations:
+- Narrow research (1-2 sections, single area): 5-8
+- Medium research (3-5 sections, comparison): 8-14
+- Broad research (6+ sections, comprehensive): 14-20
+
+### Phase 6: Validation
+
+Launch all 5 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
+
+### Phase 7: Presentation
+
+Present the validated plan. On acceptance, save to `ralph-plans/` and output the command.

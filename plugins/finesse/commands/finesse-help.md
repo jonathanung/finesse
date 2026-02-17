@@ -19,6 +19,7 @@ Finesse automatically detects your task type and runs a tailored workflow:
 | **Refactor** | Scope Definition → Current State Analysis → Target State Design → Migration Strategy → Plan → Validate → Present |
 | **Testing** | Coverage Analysis → Test Strategy → Clarifying Questions → Plan → Validate → Present |
 | **Performance** | Problem Definition → Profiling & Analysis → Optimization Strategy → Plan → Validate → Present |
+| **Research** | Goal Definition → Source Identification → Research Plan & Questions → Investigation Strategy → Plan → Validate → Present |
 
 ## Available Commands
 
@@ -37,6 +38,8 @@ Plan a ralph-loop prompt for any development task.
 /finesse Refactor the database layer to use repository pattern
 /finesse Add integration tests for the payments module
 /finesse Optimize the search endpoint — it's taking 3+ seconds
+/finesse Research whether we should use Redis or Memcached for caching
+/finesse Investigate the trade-offs between REST and GraphQL for our API
 ```
 
 ### /cancel-finesse
@@ -45,7 +48,7 @@ Cancel the current planning session without saving.
 
 ## What Happens
 
-1. **Task type detection** — Finesse classifies your task (feature, bugfix, refactor, testing, performance)
+1. **Task type detection** — Finesse classifies your task (feature, bugfix, refactor, testing, performance, research)
 2. **Type-specific workflow** — Runs the appropriate multi-phase workflow:
    - Features get codebase exploration + 3 architecture approaches
    - Bug fixes get root cause analysis + fix strategy
@@ -98,6 +101,7 @@ If you reject a plan with feedback:
 - Complex bugs where root cause isn't obvious
 - Large refactors touching many files
 - Test suites covering significant surface area
+- Research spikes, feasibility studies, or architecture comparisons
 
 **Skip when:**
 - You already have a well-structured ralph-loop prompt

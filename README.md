@@ -15,7 +15,7 @@ Finesse detects your task type, explores your codebase, asks you clarifying ques
 ```
 You → /finesse "vague idea"
        ↓
-  Task Classification (feature / bugfix / refactor / testing / performance)
+  Task Classification (feature / bugfix / refactor / testing / performance / research)
        ↓
   Type-Specific Workflow  ←  you answer clarifying questions
        ↓
@@ -76,6 +76,11 @@ Plan a ralph-loop prompt for any development task.
 # Performance
 /finesse Optimize the search endpoint — it's taking 3+ seconds
 /finesse The dashboard page takes 5s to load
+
+# Research
+/finesse Research whether we should use Redis or Memcached for caching
+/finesse Investigate the trade-offs between REST and GraphQL for our API
+/finesse Evaluate feasibility of migrating from Postgres to CockroachDB
 ```
 
 #### Example Output
@@ -105,6 +110,7 @@ Finesse detects your task type and runs a tailored multi-phase workflow. Every w
 - **Refactor/Chore** (6 phases) — Scope definition, current state analysis mapping all dependencies and callers, target state design, incremental migration strategy (never leaves codebase broken between phases), construction, validation.
 - **Testing** (5 phases) — Coverage analysis mapping test framework and gaps, test strategy ranked by risk, clarifying questions on mocking/fixtures, construction, validation.
 - **Performance** (5 phases) — Problem definition with target metrics, profiling tracing slow paths and flagging O(n^2) patterns, optimization strategy ranked by impact with measurable before/after, construction, validation.
+- **Research** (7 phases) — Goal definition clarifying the research question and deliverable format, source identification mapping codebase references and prior decisions, research plan with outline and clarifying questions, investigation strategy with per-section evidence requirements and anti-rabbit-hole constraints, construction, validation, presentation. Output is a document, not code changes — source code is strictly read-only.
 
 ## The 10 Mandatory Prompt Attributes
 
@@ -194,6 +200,9 @@ Finesse automatically sizes the ralph-loop `--max-iterations` based on task type
 | Performance | Single bottleneck | 5-10 |
 | Performance | Multiple bottlenecks | 10-18 |
 | Performance | System-wide | 15-22 |
+| Research | Narrow (1-2 sections) | 5-8 |
+| Research | Medium (3-5 sections) | 8-14 |
+| Research | Broad (6+ sections) | 14-20 |
 
 If a task needs more than 25 iterations, Finesse recommends decomposing it into separate sequential ralph runs.
 
@@ -205,6 +214,7 @@ If a task needs more than 25 iterations, Finesse recommends decomposing it into 
 - The bug's root cause isn't obvious
 - The refactor touches many files
 - You need comprehensive test coverage
+- You want a structured research spike, feasibility study, or architecture comparison
 
 **Skip Finesse when:**
 - You already have a well-structured ralph-loop prompt
