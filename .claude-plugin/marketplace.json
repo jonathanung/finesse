@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "finesse",
-      "source": ".",
+      "source": "./plugins/finesse",
       "description": "Prompt planner and validator for ralph-loop — turns vague tasks into validated autonomous development prompts",
       "version": "0.1.0",
       "category": "productivity",
