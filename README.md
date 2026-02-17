@@ -33,13 +33,18 @@ You → /finesse "vague idea"
 ## Installation
 
 ```bash
+# Add the marketplace
 /plugin marketplace add jonathanung/finesse
+
+# Install the plugin
+/plugin install finesse @ jonathanung-finesse
 ```
 
 **Prerequisite:** The ralph-loop plugin must also be installed to run the generated prompts:
 
 ```bash
 /plugin marketplace add anthropics/claude-plugins-official
+/plugin install ralph-loop @ claude-plugins-official
 ```
 
 ## Commands
@@ -215,7 +220,9 @@ If a task needs more than 25 iterations, Finesse recommends decomposing it into 
 
 ```bash
 /plugin marketplace add jonathanung/finesse
+/plugin install finesse @ jonathanung-finesse
 /plugin marketplace add anthropics/claude-plugins-official
+/plugin install ralph-loop @ claude-plugins-official
 /finesse <describe any task>
 ```
 
