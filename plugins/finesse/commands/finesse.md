@@ -129,6 +129,8 @@ If decomposition was accepted:
 
 **Git Configuration**: Before assembling the prompt, prompt the user about git usage (see Git Configuration Prompt below). The answers determine which git rules are included in the prompt's Rules section.
 
+**Subagent Configuration**: After the git configuration prompt, analyze phases for subagent eligibility and ask the user whether to include subagent instructions (see Subagent Configuration Prompt below). The answer determines whether subagent sections are included in the prompt.
+
 Build a complete ralph-loop prompt using the meta-prompting skill template. The prompt MUST include:
 
 1. **Cold start paragraph** — task-specific orientation (check tests for bugs, check coverage for testing, etc.)
@@ -162,6 +164,26 @@ Based on the user's answers, include the appropriate git rules in the prompt's `
 
 In Multi-Workflow mode, git configuration is asked once and applied uniformly to all sub-workflow prompts. Do NOT re-prompt for each sub-workflow.
 
+### Subagent Configuration Prompt
+
+After the Git Configuration prompt and before assembling the final prompt, analyze the designed phases for subagent eligibility. This analysis is mandatory, but inclusion of subagent instructions is user-gated. This prompt is NOT affected by UAT fast-forward — it must always appear.
+
+**Analysis step**: For each phase of the designed architecture, evaluate against the three subagent eligibility heuristics defined in the meta-prompting skill's Subagent Configuration section:
+
+1. **Independent subtasks** — separate file sets with no shared writes
+2. **Parallel verification** — verification can run alongside next phase
+3. **Exploration benefit** — unfamiliar code benefits from dedicated investigation
+
+**Presentation**: Present the analysis results as context for the question. For each eligible phase, state: the phase name, which heuristic(s) it matched, and what a subagent would do (concrete action and recommended subagent_type). If no phases are subagent-eligible, skip the question and proceed without subagent instructions.
+
+**Question**: Use `AskUserQuestion`: 'Would you like subagent instructions included in the ralph-loop prompt?' with options 'Yes' / 'No'.
+
+**If Yes**: Include a `## Subagent Instructions` section in the prompt after the cold start paragraph and before `## Requirements`, using the exact format from the Subagent Section Format in the meta-prompting skill. Include `[Subagent opportunity]` annotations for each eligible phase, after its `Verify:` line, using the Per-Phase Annotation Format from the meta-prompting skill. The subagent guardrails are fixed — they do not vary based on git configuration.
+
+**If No**: Generate the prompt without any subagent instructions or annotations (unchanged behavior).
+
+**Multi-Workflow note**: In Multi-Workflow mode, subagent analysis is performed per sub-workflow prompt. The question is asked once and the answer applies to all sub-workflow prompts.
+
 ### Multi-Workflow Plan Construction
 
 When the Scope Analysis phase resulted in an accepted decomposition:
@@ -171,6 +193,7 @@ When the Scope Analysis phase resulted in an accepted decomposition:
 3. Each sub-workflow prompt gets its own iteration count recommendation.
 4. **Execution graph**: Build an `execution-graph.md` documenting wave order, dependencies, and run instructions.
 5. **Git configuration**: The git rules from the Git Configuration Prompt apply uniformly to ALL sub-workflow prompts. Do NOT re-prompt for each sub-workflow.
+6. **Subagent configuration**: The subagent analysis is performed per sub-workflow prompt. The user's choice from the Subagent Configuration Prompt applies uniformly to ALL sub-workflow prompts. Do NOT re-prompt for each sub-workflow.
 
 ### Validation
 
@@ -319,3 +342,16 @@ When a planning session is long, Claude Code may compact context. To ensure crit
 3. **Recovery**: If you detect that context has been compacted (e.g., you cannot recall earlier phase outputs), read `ralph-plans/<name>-working.md` to recover state.
 4. **Working file naming**: Use `ralph-plans/<name>-working.md` where `<name>` matches the eventual plan name. If the plan name is not yet determined, derive a session descriptor from the first 3-4 words of the task description in kebab-case (e.g., `ralph-plans/_working-fix-token-refresh.md`).
 5. **Cleanup**: After plan acceptance and final file output, keep the working file for reference.
+
+### Post-Compaction Rules (CRITICAL)
+
+**Finesse is a PLANNING tool. It produces prompt files and plan files. It NEVER writes, edits, or modifies source code, application code, configuration files, or any file outside of `ralph-plans/`.**
+
+After context compaction occurs:
+
+1. **STOP all work immediately.** Do NOT continue where you left off from memory. Your recall of prior phases is unreliable after compaction.
+2. **Read the working file first.** Before doing ANYTHING else, read `ralph-plans/<name>-working.md` in full. This is your single source of truth.
+3. **NEVER make code changes.** Finesse does not write code. It writes plans and prompts. If you feel the urge to edit a source file, you have lost the plot — re-read the working file and this command definition.
+4. **NEVER act on stale context.** If the working file does not contain enough information to continue the current phase, tell the user what is missing and ask how to proceed. Do NOT guess or reconstruct from fragments.
+5. **Re-orient before resuming.** After reading the working file, output a brief summary to the user: what phase you are in, what has been completed, and what the next step is. Wait for user confirmation before proceeding.
+6. **No silent continuation.** You must ALWAYS surface to the user after compaction. Never silently pick up mid-phase and start producing output without first confirming recovered state with the user.

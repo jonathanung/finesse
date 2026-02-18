@@ -60,16 +60,20 @@ No room for the agent to convince itself it's done when it isn't. Include: "Do n
 You are iterating on [PROJECT]. Before doing anything, check the current
 state: run tests, read recent git log, identify what's done vs remaining.
 
+[If subagent instructions opted in: include ## Subagent Instructions section here. See Subagent Configuration section.]
+
 ## Requirements (in order)
 Phase 1: [specific deliverable]
   - [verifiable criterion]
   - [verifiable criterion]
   Verify: [exact command to run]
+  [If subagent eligible: include [Subagent opportunity] annotation here. See Subagent Configuration section.]
 
 Phase 2: [specific deliverable]
   - [verifiable criterion]
   - [verifiable criterion]
   Verify: [exact command to run]
+  [If subagent eligible: include [Subagent opportunity] annotation here. See Subagent Configuration section.]
 
 ## Rules
 - Run [test command] after every change. Fix failures before moving on.
@@ -157,6 +161,65 @@ Use the user's verbatim description as the checkpoint rule, plus:
 ```
 - Push commits to the remote repository after committing.
 ```
+
+## Subagent Configuration
+
+During Plan Construction, the user is optionally offered subagent instructions for phases where parallel execution would improve efficiency. Based on the user's choice, include or omit the following sections in the generated prompt.
+
+### Subagent Eligibility Heuristics
+
+1. **Independent subtasks**: Phase contains work on separate file sets with no shared writes. Recommended subagent type: `general-purpose`.
+2. **Parallel verification**: Phase's verification commands can run alongside next phase's work without gating it. Recommended subagent type: `Bash`.
+3. **Exploration benefit**: Phase touches unfamiliar code that benefits from dedicated investigation. Recommended subagent type: `Explore`.
+
+A phase is subagent-eligible if it matches at least one heuristic.
+
+### Subagent Section Format
+
+When the user opts in to subagent instructions, include the following section in the generated prompt after the cold start paragraph and before `## Requirements`:
+
+```
+## Subagent Instructions
+
+You may use the Task tool to spawn subagents for parallel work. Follow these guidelines:
+
+### Available Subagent Types
+
+- **Bash**: Run test suites, linting, and verification commands in parallel with continued work.
+- **Explore**: Investigate unfamiliar code, research patterns, and trace execution flows.
+- **general-purpose**: Perform file modifications on independent, non-overlapping file sets.
+
+### Guardrails
+
+- Run at most 2 concurrent subagents at a time.
+- Subagents must NOT make git commits or push to remote repositories.
+- Subagents must NOT modify files outside their assigned scope.
+- Wait for all subagent results before marking a phase complete.
+- If a subagent fails, retry once. If it fails again, do the work yourself.
+- Provide clear, scoped instructions when spawning a subagent — include specific file paths and expected outcomes.
+```
+
+### Per-Phase Annotation Format
+
+For each subagent-eligible phase, add an annotation on a new line after the phase's `Verify:` line, indented to match the phase content. Use this format:
+
+```
+[Subagent opportunity]: <description of what to parallelize>, using <subagent_type> subagent. <why it's safe>.
+```
+
+Example:
+
+```
+Phase 2: Implement authentication endpoint
+  - Add JWT validation middleware to src/middleware/auth.ts
+  - Create /api/auth route handler in src/routes/auth.ts
+  Verify: npm test -- --grep "auth"
+  [Subagent opportunity]: Spawn a Bash subagent to run the full test suite while beginning Phase 3. Phase 3 modifies different files (src/routes/users.ts) so there is no write conflict.
+```
+
+### No Subagent Instructions Selected
+
+If the user declines subagent instructions, omit the `## Subagent Instructions` section and all `[Subagent opportunity]` annotations entirely. The prompt is generated without any subagent content.
 
 ## Multi-Workflow Output Format
 

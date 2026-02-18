@@ -59,7 +59,7 @@ Cancel the current planning session without saving.
    - etc.
 4. **Clarifying questions** — Finesse asks you to resolve ambiguities (never guesses)
 5. **UAT checkpoints** — At strategic phases, Finesse presents its work and asks you to accept, provide feedback, make specific changes, or skip remaining checkpoints
-6. **Plan construction** — Builds a structured ralph-loop prompt with cold start, phases, verification commands, guardrails
+6. **Plan construction** — Builds a structured ralph-loop prompt with cold start, phases, verification commands, guardrails. Optionally includes subagent spawning instructions for parallel execution.
 7. **Parallel validation** — 5 agents review the plan simultaneously
 8. **Refinement** — Issues fixed automatically or flagged for your input
 9. **Presentation** — Plan shown for your approval

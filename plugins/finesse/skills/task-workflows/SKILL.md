@@ -175,6 +175,8 @@ Using the chosen approach, construct a complete ralph-loop prompt following the 
 - Task-specific guardrails based on the architecture
 - Completion criteria derived from the requirements
 
+**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
+
 Determine ralph-loop `--max-iterations` with reasoning:
 - Simple feature (1-2 files): 8-12
 - Medium feature (3-5 files): 12-18
@@ -291,6 +293,8 @@ Build the ralph-loop prompt focused on:
 - Verification: run test suite, specifically the failing case
 - Guardrails: "Do NOT fix symptoms — fix the root cause", "Do NOT modify unrelated code", "Verify the original reproduction case passes"
 
+**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
+
 Ralph-loop iterations:
 - Simple bug (one file, clear cause): 5-8
 - Medium bug (multi-file, clear cause): 8-12
@@ -393,6 +397,8 @@ Build the ralph-loop prompt focused on:
 - Guardrails: "Do NOT change external behavior", "Do NOT skip updating callers", "Run full test suite after each phase", "Make targeted edits, not file rewrites"
 - Completion: all tests pass, no references to old pattern remain
 
+**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
+
 Ralph-loop iterations:
 - Small refactor (1-3 files): 5-8
 - Medium refactor (4-8 files): 10-15
@@ -481,6 +487,8 @@ Build the ralph-loop prompt focused on:
 - Verification: test suite passes, coverage increases
 - Guardrails: "Do NOT modify source code to make tests pass", "Follow existing test patterns", "Test behavior not implementation", "Do NOT write tests that test the framework"
 
+**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
+
 Ralph-loop iterations:
 - Small test suite (5-10 tests): 5-8
 - Medium test suite (10-25 tests): 10-15
@@ -562,6 +570,8 @@ Build the ralph-loop prompt focused on:
 - Verification: run benchmark after each change, compare to baseline
 - Guardrails: "Do NOT sacrifice correctness for speed", "Measure before and after every change", "If an optimization makes no measurable difference, revert it"
 - Completion: benchmark meets target threshold
+
+**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
 
 Ralph-loop iterations:
 - Single bottleneck: 5-10
@@ -698,6 +708,8 @@ Build the ralph-loop prompt focused on:
   - Evidence citations present in every substantive section
   - Synthesis/recommendation section cross-references prior sections
   - Minimum word count met (defined during Phase 3)
+
+**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
 
 Ralph-loop iterations:
 - Narrow research (1-2 sections, single area): 5-8
