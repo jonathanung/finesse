@@ -1,7 +1,7 @@
 ---
 description: "Resume an interrupted Finesse planning session from a working file"
 argument-hint: "[PATH_TO_WORKING_FILE]"
-allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
+allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -126,6 +126,14 @@ Reference the **task-workflows** skill for detailed phase-by-phase instructions.
 - **Research (research)**: RE1 (Goal Definition) → RE2 (Source Identification) [UAT] → RE3 (Scope Analysis) [UAT] → RE4 (Research Plan & Questions) [UAT] → RE5 (Investigation Strategy) [UAT] → RE6 (Plan Construction) → RE7 (Validation) → RE8 (Presentation)
 
 Follow the phase-by-phase instructions from the **task-workflows** skill for the recovered task type's workflow, starting from the determined resume phase.
+
+### Exploration Cache
+
+When resuming a session that will re-enter an exploration phase (F2, B2, R2, T1, P2, RE2), follow the Exploration Cache loading procedure from the main finesse command: check `.finesse/exploration-cache.json`, prune stale entries, and decide between cache-hit (lighter exploration) or cache-miss (full exploration) based on the staleness threshold.
+
+After exploration completes, save findings to the cache following the Cache Saving procedure from the main finesse command.
+
+Cache operations are best-effort — if the cache is missing or malformed, proceed with full exploration.
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 description: "Plan and validate a ralph-loop prompt for autonomous development"
 argument-hint: "TASK_DESCRIPTION [--max-refinements N]"
-allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
+allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -287,6 +287,8 @@ When launching **code-explorer** agents via Task tool and they return empty or i
 - Fall back to manual Glob/Grep exploration
 - Do NOT proceed to architecture design with no codebase understanding
 
+**Cache-aware launching**: Before launching code-explorer agents, check the exploration cache as described in the Exploration Cache section. On cache hit, launch 1 focused agent with cached context. On cache miss, launch agents as described above.
+
 ### Code Architect Agents
 When launching **code-architect** agents for the feature workflow and the user rejects all proposed approaches:
 - Ask the user to describe their preferred approach
@@ -305,6 +307,54 @@ When the Scope Analysis phase produces a DECOMPOSE recommendation and the user a
 - Pass the full decomposition (sub-workflows, scopes, dependencies, estimates)
 - If FAIL: fix the decomposition and re-present at the UAT checkpoint
 - If NEEDS_REWORK: fix if within refinement budget
+
+---
+
+## Exploration Cache
+
+Finesse caches codebase exploration findings in `.finesse/exploration-cache.json` to speed up repeat planning sessions. The cache schema, staleness model, and merge rules are defined in the meta-prompting skill's **Exploration Cache Schema** section.
+
+### Cache Structure
+
+The cache contains a **baseline** (global codebase patterns, conventions, framework, directory structure) and **entries** (task-specific findings keyed by `<directory_scope>:<keyword>`). An optional `.finesse/config.json` controls cache behavior. See the meta-prompting skill's Exploration Cache Schema section for the full JSON schema.
+
+### Cache Loading (Before Exploration)
+
+At the START of every exploration phase (F2, B2, R2, T1, P2, RE2), BEFORE launching code-explorer agents:
+
+1. Check if `.finesse/exploration-cache.json` exists using Read. If not, skip to full exploration (cache miss).
+2. Read `.finesse/config.json` if it exists. If `cache_enabled` is false, skip to full exploration. Otherwise get `staleness_threshold` (default 50).
+3. Read the cache file.
+4. Run `git diff --name-only <baseline.commit_hash>..HEAD` and count changed files.
+5. If count >= threshold: cache miss — proceed with full exploration.
+6. If count < threshold: cache hit —
+   a. Prune stale entries: for each entry, check if any `referenced_files` appear in the diff output. Remove stale entries.
+   b. Load surviving baseline + entries whose `keywords` or `directory_scope` match the current task.
+   c. Launch 1 code-explorer agent (instead of 2-3) with: "The following baseline context is already known: [baseline]. The following area-specific findings are cached: [matching entries]. Focus your exploration on [task-specific area] and any gaps not covered by cached context. Do NOT re-discover general patterns already provided."
+
+### Cache Saving (After Exploration)
+
+At the END of every exploration phase, AFTER exploration results are gathered and synthesis is complete, BEFORE the UAT checkpoint:
+
+1. Create `.finesse/` if it does not exist: `mkdir -p .finesse`
+2. Get current commit hash: `git rev-parse HEAD`
+3. Extract findings into cache structure:
+   - If no baseline exists or this was a cache miss: extract global findings as `baseline` (patterns, conventions, framework, directory structure). Set `baseline.commit_hash` and `baseline.last_confirmed`.
+   - Extract task-specific findings as new entries with: `keywords` from task description and architecture patterns found; `directory_scope` from primary directories explored; `referenced_files` from all files read during exploration; `summary` as 1-2 sentence description.
+4. Merge new entries with existing cache (do not overwrite unrelated entries).
+5. Write updated cache to `.finesse/exploration-cache.json`.
+
+### Cache Configuration
+
+An optional `.finesse/config.json` file with `cache_enabled` (boolean, default true) and `staleness_threshold` (integer, default 50). If absent, defaults are used. User may create or edit this file manually.
+
+### Cache Presentation at UAT
+
+When cache is used, the exploration phase UAT checkpoint MUST include:
+- A note: "**Cache status**: Loaded baseline + N matching entries. M stale entries pruned."
+- The loaded baseline context
+- New task-specific findings from the lighter exploration
+- Any gaps where cache may be insufficient
 
 ---
 
@@ -332,6 +382,8 @@ When the Scope Analysis phase produces a DECOMPOSE recommendation and the user a
 - Each sub-workflow prompt must be fully self-contained — include all relevant shared context inline. Sub-workflow prompts are read via `$(cat ...)` and have no access to sibling files.
 - The `execution-graph.md` file is for human reference. The user decides whether to run sub-workflows in parallel.
 - When the user overrides decomposition, warn about consequences but respect the override.
+- The `.finesse/` directory is for Finesse runtime cache and configuration. It is gitignored. Cache operations are best-effort — if reading or writing the cache fails (malformed JSON, missing git commit, etc.), continue the planning session without the cache. Do NOT block exploration on cache failures.
+- When exploration uses cached context, ALWAYS disclose this at the UAT checkpoint. Never silently skip exploration.
 
 ## Context Compaction Handling
 

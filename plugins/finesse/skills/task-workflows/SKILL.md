@@ -99,12 +99,16 @@ Do NOT proceed until the user confirms your understanding is correct. This is NO
 
 **Goal**: Understand relevant existing code and patterns.
 
+**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
+
 Launch 2-3 **code-explorer** agents in parallel via Task tool. Each explores a different aspect:
 - Agent 1: "Find features similar to [feature] in this codebase. Trace their implementation end-to-end. Return entry points, execution flow, key components, and essential files."
 - Agent 2: "Map the architecture and abstractions in [relevant area]. Identify patterns, conventions, file organization, and dependencies."
 - Agent 3 (if applicable): "Analyze the current implementation of [related feature]. How does it handle [relevant concern like auth, data flow, error handling]?"
 
 After agents return, READ all essential files they identified. Build deep understanding before proceeding.
+
+**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
 
 **UAT presentation for this phase:**
 - **What was done**: Explored codebase for similar features, architecture patterns, and conventions.
@@ -221,11 +225,15 @@ Do NOT proceed until you have a clear reproduction path. This is NOT a UAT check
 
 **Goal**: Trace the bug through the code.
 
+**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
+
 Launch 2 **code-explorer** agents in parallel:
 - Agent 1: "Trace the execution path for [the failing operation]. Start from [entry point] and follow through to where [the failure occurs]. Identify every file and function in the chain."
 - Agent 2: "Search for recent changes to [affected area]. Check git history for files related to [the bug]. Find any related tests that might be passing incorrectly."
 
 After agents return, read all identified files. Map the exact code path where the bug occurs.
+
+**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
 
 **UAT presentation for this phase:**
 - **What was done**: Traced the execution path and investigated recent changes related to the bug.
@@ -327,11 +335,15 @@ This is NOT a UAT checkpoint — Scope Definition requires iterative back-and-fo
 
 **Goal**: Map what exists before changing it.
 
+**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
+
 Launch 1-2 **code-explorer** agents:
 - Agent 1: "Map the current architecture of [area to refactor]. Identify all files, dependencies, callers, and tests. List everything that would break if this code changed."
 - Agent 2 (if large scope): "Find all usages of [thing being refactored] across the codebase. Include imports, type references, and indirect dependencies."
 
 After agents return, read essential files. Build a dependency map.
+
+**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
 
 **UAT presentation for this phase:**
 - **What was done**: Mapped the current architecture, dependencies, callers, and tests for the area being refactored.
@@ -416,6 +428,8 @@ Validate and present.
 
 **Goal**: Understand what's tested and what isn't.
 
+**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
+
 Launch 1-2 **code-explorer** agents:
 - Agent 1: "Find all test files in this project. Identify the testing framework, test patterns, and conventions used. Map which source files have corresponding tests and which don't."
 - Agent 2: "Analyze [area to test]. Identify all public functions, API endpoints, and user-facing behavior. Note edge cases, error paths, and boundary conditions."
@@ -427,6 +441,8 @@ Ask the user:
 - What's the target coverage goal?
 
 After gathering exploration results AND user answers, synthesize a coverage picture.
+
+**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
 
 **UAT presentation for this phase:**
 - **What was done**: Analyzed existing test coverage and gathered testing priorities from the user.
@@ -519,9 +535,13 @@ Do not accept vague performance complaints. Insist on specifics: which operation
 
 **Goal**: Find the actual bottleneck, don't guess.
 
+**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
+
 Launch 1-2 **code-explorer** agents:
 - Agent 1: "Trace the execution path of [slow operation]. Identify database queries, external API calls, loops, and data transformations. Flag anything that could be O(n²) or worse."
 - Agent 2: "Find caching, indexing, and optimization patterns already used in this codebase. Identify if [slow area] is missing any of these."
+
+**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
 
 **UAT presentation for this phase:**
 - **What was done**: Traced execution paths and analyzed where time is actually spent.
@@ -606,12 +626,16 @@ Do NOT proceed until the research question is specific enough to have a clear "d
 
 **Goal**: Map codebase sources, architecture, and prior decisions related to the research topic.
 
+**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
+
 Launch 2-3 **code-explorer** agents in parallel:
 - Agent 1: "Find all code, configuration, and documentation related to [research topic]. Identify relevant files, patterns, and conventions. Return file paths and key excerpts."
 - Agent 2: "Map the architecture and design decisions in [relevant area]. Identify how the current implementation works, what trade-offs were made, and where decisions are documented (comments, ADRs, READMEs)."
 - Agent 3 (if applicable): "Search for prior art, alternative approaches, or related implementations in this codebase. Look for TODOs, FIXMEs, or comments referencing [topic]. Check git history for relevant discussions."
 
 After agents return, READ all identified files. Build a source inventory before proceeding.
+
+**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
 
 **UAT presentation for this phase:**
 - **What was done**: Mapped codebase sources, architecture, and prior decisions related to the research topic.

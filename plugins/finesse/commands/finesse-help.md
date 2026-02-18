@@ -67,7 +67,7 @@ Resume an interrupted Finesse planning session from a working file.
 1. **Task type detection** — Finesse classifies your task (feature, bugfix, refactor, testing, performance, research)
 2. **Scope analysis** — For large tasks, Finesse may propose splitting into multiple sub-workflows that can run in parallel
 3. **Type-specific workflow** — Runs the appropriate multi-phase workflow:
-   - Features get codebase exploration + 3 architecture approaches
+   - Features get codebase exploration (with cache for faster repeat sessions) + 3 architecture approaches
    - Bug fixes get root cause analysis + fix strategy
    - Refactors get dependency mapping + migration strategy
    - etc.
@@ -150,6 +150,17 @@ Finesse saves progress to working files during long planning sessions. If a sess
 - Later phases resume from where they left off
 - All UAT checkpoint decisions are preserved
 - Works with both single-workflow and multi-workflow (decomposed) sessions
+
+## Exploration Cache
+
+Finesse caches codebase exploration findings in `.finesse/exploration-cache.json` to speed up repeat planning sessions:
+
+- **Cache hit**: If fewer than 50 files changed since last cache, Finesse loads cached findings and runs a lighter, task-specific exploration
+- **Cache miss**: If many files changed or no cache exists, full exploration runs as normal
+- **Staleness**: Cache entries referencing files that changed since last session are automatically pruned
+- **Configuration**: Override the threshold in `.finesse/config.json` (default: 50 files)
+- **Location**: `.finesse/` is gitignored — cache is local to your machine
+- **Reset**: Delete `.finesse/exploration-cache.json` to force full re-exploration
 
 ## When to Use Finesse
 

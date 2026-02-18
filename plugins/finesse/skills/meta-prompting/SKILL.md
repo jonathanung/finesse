@@ -221,6 +221,65 @@ Phase 2: Implement authentication endpoint
 
 If the user declines subagent instructions, omit the `## Subagent Instructions` section and all `[Subagent opportunity]` annotations entirely. The prompt is generated without any subagent content.
 
+## Exploration Cache Schema
+
+Finesse persists codebase exploration findings across sessions using a JSON cache stored at `.finesse/exploration-cache.json`. This section defines the schema, staleness model, and merge rules that all cache operations reference.
+
+### Cache File Schema (`.finesse/exploration-cache.json`)
+
+```json
+{
+  "version": 1,
+  "baseline": {
+    "commit_hash": "<git rev-parse HEAD when baseline was last confirmed>",
+    "last_confirmed": "<ISO 8601 timestamp>",
+    "file_structure_patterns": ["<pattern descriptions>"],
+    "test_framework": "<framework name and conventions>",
+    "naming_conventions": ["<convention descriptions>"],
+    "architecture_style": "<description>",
+    "key_directories": {
+      "<directory_path>": "<responsibility description>"
+    }
+  },
+  "entries": {
+    "<directory_scope>:<keyword>": {
+      "summary": "<1-2 sentence finding>",
+      "referenced_files": ["<file paths this finding depends on>"],
+      "keywords": ["<searchable keywords>"],
+      "directory_scope": "<primary directory this entry covers>",
+      "last_confirmed": "<ISO 8601 timestamp>",
+      "commit_hash": "<git commit hash when entry was confirmed>"
+    }
+  }
+}
+```
+
+### Configuration File Schema (`.finesse/config.json`)
+
+```json
+{
+  "cache_enabled": true,
+  "staleness_threshold": 50
+}
+```
+
+### Index Key Format
+
+Cache entry keys use the format `<directory_scope>:<keyword>` (e.g., `src/auth:jwt-validation`, `lib/models:active-record-patterns`). The directory scope is the primary directory the finding covers, and the keyword is a descriptive tag for the finding.
+
+### Staleness Model
+
+An entry is **stale** if any file in its `referenced_files` list appears in `git diff --name-only <entry.commit_hash>..HEAD`. Stale entries are removed during cache loading before any cached context is used.
+
+The **baseline** is stale if the diff since `baseline.commit_hash` exceeds the `staleness_threshold` number of files (default: 50). A stale baseline triggers a full cache miss — the entire cache is discarded and full exploration runs.
+
+### Merge Rules
+
+- New entries with existing keys **overwrite** old entries.
+- New entries with new keys are **additive** (appended to the cache).
+- The baseline is **overwritten wholesale** on full exploration (cache miss).
+- Stale entries are **removed** on cache load, before any merge occurs.
+
 ## Multi-Workflow Output Format
 
 When a task is decomposed into multiple sub-workflows during Scope Analysis, the output uses a nested directory structure instead of the flat format.
