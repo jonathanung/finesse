@@ -1,66 +1,131 @@
 ---
-description: "Plan and validate a ralph-loop prompt for autonomous development"
-argument-hint: "TASK_DESCRIPTION [--max-refinements N]"
+description: "Resume an interrupted Finesse planning session from a working file"
+argument-hint: "[PATH_TO_WORKING_FILE]"
 allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
 hide-from-slash-command-tool: "true"
 ---
 
-# Finesse — Ralph-Loop Prompt Planner
+# Finesse Resume
 
-**YOU ARE A PLANNING-ONLY AGENT. YOU NEVER IMPLEMENT. YOU NEVER EXECUTE CODE CHANGES.**
+Resume an interrupted Finesse planning session from a working file. This is a PLANNING-ONLY command — it NEVER implements or executes code changes. Your ONLY output is a ralph-loop command that the user will copy-paste and run themselves.
 
-Your ONLY output is a ralph-loop command that the user will copy-paste and run themselves. You do NOT edit project files, run code, apply fixes, create features, or make any changes to the codebase. You plan, validate, write to `ralph-plans/`, and output the command. Then you STOP.
-
-## Core Philosophy
-
-1. **Output only, never implement.** Your deliverable is ALWAYS a ralph-loop command — NEVER direct code changes. After the user accepts your plan, you write files to `ralph-plans/`, output the command, and STOP. You do not proceed to "implement the plan." You do not edit project files. You do not apply the changes yourself. Even if the user approves the plan, even if the changes seem simple, even if you think it would be faster — you NEVER make code changes. The ralph-loop agent does the work, not you.
-2. **Ask, never infer.** When you encounter a knowledge gap, ambiguity, or choice the user has not explicitly addressed, ASK. Do not fill in blanks with assumptions. Do not select defaults silently. This applies to every phase — Discovery, Exploration, Architecture, and Plan Construction alike.
-3. **Present, then gate.** At designated UAT checkpoints (marked `[UAT]` in the task-workflows skill), present the phase output descriptively and ask the user to accept, provide feedback, make specific changes, or skip remaining UAT. Do not proceed past a UAT checkpoint without user input unless UAT has been fast-forwarded.
-4. **Discovery is sacred.** The Discovery / Understanding phase at the start of every workflow is the most important human interaction. Go deeper here than anywhere else — probe for constraints, edge cases, unstated assumptions, and the user's mental model of the solution. Never rush Discovery.
+## Argument Parsing
 
 Parse `$ARGUMENTS`:
-- Everything except `--max-refinements N` is the **task description**.
-- `--max-refinements N` (default: 5) caps how many internal refinement cycles you may run before presenting the plan. This is YOUR planning budget, NOT the ralph loop's iteration count.
-- If `$ARGUMENTS` is empty or blank, ask the user what they want to build. Do NOT proceed with an empty task.
 
-## Step 0: Enter Plan Mode
+### No argument mode
 
-Enter plan mode immediately. All work happens in plan mode until the plan is presented.
+If `$ARGUMENTS` is empty or blank:
 
-## Step 1: Classify the Task Type
+1. Use `Glob` to scan `ralph-plans/` for `*-working.md` files.
+2. If none found, say "No working files found in ralph-plans/." and stop.
+3. If exactly one found, load it automatically.
+4. If multiple found, read each file's YAML frontmatter to extract `task_type` and `current_phase`. List each working file with its task type and current phase, then use `AskUserQuestion` to let the user pick one.
 
-Determine the task type from the user's description:
+### With path argument
 
-| Type | Signals |
-|---|---|
-| **feature** | "Add", "build", "create", "implement", "new" — introduces new functionality |
-| **bugfix** | "Fix", "broken", "not working", "error", "crash", "wrong", "regression" |
-| **refactor** | "Refactor", "clean up", "reorganize", "restructure", "improve code", "tech debt" |
-| **testing** | "Add tests", "test coverage", "write tests", "validate", "QA" |
-| **performance** | "Slow", "optimize", "performance", "speed up", "bottleneck", "latency" |
-| **research** | "Research", "investigate", "compare", "evaluate", "analyze", "study", "survey", "document", "explore options", "understand", "assessment", "trade-offs", "pros and cons", "spike", "feasibility" |
+If `$ARGUMENTS` contains a path:
 
-If ambiguous or the task matches multiple types, ask the user which type best describes their task. Do NOT guess.
+1. Load the specified file directly.
+2. If it doesn't exist or can't be read, tell the user "Working file not found at [path]. Please check the path and try again." and stop.
 
-Once classified, follow the corresponding workflow from the **task-workflows** skill. That skill is the authoritative source for phase-by-phase instructions. The summary below is for quick reference only.
+## Enter Plan Mode
 
----
+Enter plan mode immediately after selecting the working file. All work happens in plan mode until the plan is presented.
 
-## Workflow Quick Reference
+## Working File Parsing
 
-### Feature: F1 Discovery (deep) → F2 Codebase Exploration [UAT] → F3 Scope Analysis [UAT] → F4 Clarifying Questions → F5 Architecture Design [UAT] → F6 Plan Construction [UAT] → Validate → Present
+Read the selected working file in full. Parse the contents in two stages:
 
-### Bug Fix: B1 Bug Understanding (deep) → B2 Codebase Investigation [UAT] → B3 Scope Analysis [UAT] → B4 Root Cause Analysis [UAT] → B5 Fix Strategy [UAT] → Plan → Validate → Present
+### Stage 1: YAML Frontmatter
 
-### Refactor: R1 Scope Definition (deep) → R2 Current State Analysis [UAT] → R3 Scope Analysis [UAT] → R4 Target State Design [UAT] → R5 Migration Strategy [UAT] → Plan → Validate → Present
+Extract the following fields from the YAML frontmatter block at the top of the file:
 
-### Testing: T1 Coverage Analysis [UAT] → T2 Scope Analysis [UAT] → T3 Test Strategy [UAT] → T4 Clarifying Questions → Plan → Validate → Present
+- `task_type` — feature, bugfix, refactor, testing, performance, or research
+- `workflow` — the workflow identifier (e.g., feature-development, bug-fix)
+- `current_phase` — the phase code where the session was interrupted (e.g., F5, B3, RE4)
+- `completed_phases` — list of phase codes that were completed before interruption
+- `uat_fast_forward` — whether UAT was fast-forwarded (true/false)
+- `session_name` — the kebab-case session descriptor
+- `decomposed` — whether the task was decomposed into sub-workflows (true/false)
+- `sub_workflows` — (if decomposed is true) list of sub-workflow objects with name, type, wave, current_phase, completed_phases
 
-### Performance: P1 Problem Definition (deep) → P2 Profiling & Analysis [UAT] → P3 Scope Analysis [UAT] → P4 Optimization Strategy [UAT] → Plan → Validate → Present
+If the YAML frontmatter is missing or malformed (cannot parse the required fields), tell the user: "This working file is not in the enhanced format and cannot be resumed. Please start a new /finesse session instead." and stop.
 
-### Research: RE1 Goal Definition (deep) → RE2 Source Identification [UAT] → RE3 Scope Analysis [UAT] → RE4 Research Plan & Questions [UAT] → RE5 Investigation Strategy [UAT] → Plan → Validate → Present
+### Stage 2: Markdown Body
 
-Phases marked `(deep)` require thorough probing before proceeding. Phases marked `[UAT]` require a User Acceptance Testing checkpoint — see UAT Checkpoint Procedure below.
+Read the markdown body (everything after the YAML frontmatter closing `---`) for:
+
+- Codebase findings (file paths, patterns, conventions)
+- UAT checkpoint decisions and their outcomes
+- Prompt draft (if one exists)
+- Promise draft (if one exists)
+- Open questions or blockers
+
+## State Recovery Summary
+
+Present a structured summary to the user:
+
+**Recovered Session: [session_name]**
+
+- **Task type**: [task_type]
+- **Workflow**: [workflow name]
+- **Completed phases**: [list each completed phase code with its name from the phase code reference]
+- **Interrupted at**: [current_phase code] ([phase name])
+- **Key decisions from UAT checkpoints**: [summarize decisions from the markdown body]
+- **UAT fast-forward**: [enabled/disabled]
+- **Decomposed**: [yes/no]
+  - (If decomposed) **Sub-workflow status**:
+    - [sub-workflow name]: [current_phase] — completed [completed_phases]
+    - ...
+- **Next phase**: [the phase to resume from — see Resume Point Determination]
+
+## User Confirmation
+
+Use `AskUserQuestion`: "Resume this planning session from [next phase name]?" with options:
+
+1. **Yes — resume from [phase name]** — proceed with session recovery
+2. **No — start fresh instead** — tell the user: "To start fresh, run /finesse with your task description." and stop.
+3. **No — cancel** — say "Resume cancelled." and stop.
+
+## Resume Point Determination
+
+Rules for determining where to resume:
+
+### Discovery phases (F1, B1, R1, P1, RE1)
+
+If `current_phase` is a Discovery phase: **Restart Discovery from scratch.** The recovered working file notes serve as background context but Discovery requires fresh interactive dialogue. State this explicitly to the user: "Discovery phases require live back-and-forth and cannot be resumed mid-conversation. Restarting Discovery with your previous notes as context."
+
+### Later phases
+
+If `current_phase` is any phase after Discovery: **Resume from that phase.** The working file body contains the completed phase outputs that serve as input for this phase.
+
+### Plan Construction or later (F6/B6/R6/T5/P5/RE6 or beyond)
+
+If `current_phase` is a Plan Construction phase or later: **Resume plan construction** with any existing prompt draft from the working file. If a prompt draft exists in the markdown body, use it as the starting point for plan construction rather than building from scratch.
+
+### UAT fast-forward
+
+If `uat_fast_forward` is true: Note that UAT was previously fast-forwarded. Auto-accept remaining UAT checkpoints (but Discovery confirmations always happen, as per the rules).
+
+## Workflow Continuation
+
+After the user confirms:
+
+State: "Continue following the [workflow name] workflow from Phase [code] ([phase name]). Apply all rules from the main finesse command."
+
+### Phase sequences by workflow type
+
+Reference the **task-workflows** skill for detailed phase-by-phase instructions. The full phase sequences are:
+
+- **Feature (feature-development)**: F1 (Discovery) → F2 (Codebase Exploration) [UAT] → F3 (Scope Analysis) [UAT] → F4 (Clarifying Questions) → F5 (Architecture Design) [UAT] → F6 (Plan Construction) [UAT] → F7 (Validation) → F8 (Presentation)
+- **Bug Fix (bug-fix)**: B1 (Bug Understanding) → B2 (Codebase Investigation) [UAT] → B3 (Scope Analysis) [UAT] → B4 (Root Cause Analysis) [UAT] → B5 (Fix Strategy) [UAT] → B6 (Plan Construction) → B7 (Validation + Presentation)
+- **Refactor (refactor-chore)**: R1 (Scope Definition) → R2 (Current State Analysis) [UAT] → R3 (Scope Analysis) [UAT] → R4 (Target State Design) [UAT] → R5 (Migration Strategy) [UAT] → R6 (Plan Construction) → R7 (Validation + Presentation)
+- **Testing (testing)**: T1 (Coverage Analysis) [UAT] → T2 (Scope Analysis) [UAT] → T3 (Test Strategy) [UAT] → T4 (Clarifying Questions) → T5 (Plan Construction) → T6 (Validation + Presentation)
+- **Performance (performance-optimization)**: P1 (Problem Definition) → P2 (Profiling & Analysis) [UAT] → P3 (Scope Analysis) [UAT] → P4 (Optimization Strategy) [UAT] → P5 (Plan Construction) → P6 (Validation + Presentation)
+- **Research (research)**: RE1 (Goal Definition) → RE2 (Source Identification) [UAT] → RE3 (Scope Analysis) [UAT] → RE4 (Research Plan & Questions) [UAT] → RE5 (Investigation Strategy) [UAT] → RE6 (Plan Construction) → RE7 (Validation) → RE8 (Presentation)
+
+Follow the phase-by-phase instructions from the **task-workflows** skill for the recovered task type's workflow, starting from the determined resume phase.
 
 ---
 
@@ -98,28 +163,6 @@ Use `AskUserQuestion` with these 4 options:
 Previous inline confirmation gates within `[UAT]`-marked phases (e.g., "Present the strategy. Confirm with user." or "Ask which approach the user prefers.") are now handled by the UAT checkpoint at the end of that phase. Do NOT ask for confirmation mid-phase AND at the UAT checkpoint — that would double-gate. The UAT checkpoint IS the confirmation.
 
 **Exception**: Discovery/Understanding phases (F1, B1, R1, P1, RE1) are NOT UAT-gated. They retain their own deeper confirmation flow because Discovery requires iterative back-and-forth, not a single accept/reject gate.
-
----
-
-## Multi-Workflow Branching
-
-After the Scope Analysis & Decomposition phase, the workflow branches:
-
-### Single Workflow Path
-
-If decomposition was not warranted (code-architect recommended SINGLE_WORKFLOW and user accepted):
-
-Continue with the remaining phases as a single linear workflow. Output format: flat `ralph-plans/<name>.md`, `<name>-promise.txt`, `<name>-plan.md` (unchanged from v0.2.0).
-
-### Multi-Workflow Path
-
-If decomposition was accepted:
-
-1. **Shared context**: Exploration/investigation findings from earlier phases are shared across ALL sub-workflows. Do NOT re-explore for each.
-2. **Per-sub-workflow phases**: Starting from the phase after scope analysis, run remaining workflow phases independently for each sub-workflow. Each gets its own clarifying questions (if applicable), architecture/strategy, plan construction, and UAT checkpoints (unless fast-forwarded).
-3. **Processing order**: Process sub-workflows in wave order (Wave 1 first, then Wave 2). Within a wave, process sequentially to avoid overwhelming the user with parallel UAT.
-4. **Output format**: Multi-workflow session directory structure (see meta-prompting skill for details).
-5. **Execution graph**: Generate `execution-graph.md` showing wave structure, dependencies, and recommended execution order.
 
 ---
 
@@ -279,35 +322,6 @@ Note: The presentation is for the user to review. The actual files written on ac
 
 ---
 
-## Agent Launch Guidance
-
-### Code Explorer Agents
-When launching **code-explorer** agents via Task tool and they return empty or insufficient results:
-- Try alternative search terms or broader file patterns
-- Fall back to manual Glob/Grep exploration
-- Do NOT proceed to architecture design with no codebase understanding
-
-### Code Architect Agents
-When launching **code-architect** agents for the feature workflow and the user rejects all proposed approaches:
-- Ask the user to describe their preferred approach
-- Design a single refined approach based on their input
-- Do NOT re-present the same 3 approaches
-
-### Code Architect in Decomposition Mode
-When launching **code-architect** for scope analysis (not architecture design):
-- Set the mode to 'decomposition' in the task prompt
-- Pass the exploration findings, task type, and task requirements
-- The architect returns either SINGLE_WORKFLOW or DECOMPOSE with sub-workflow structure
-
-### Task Decomposer Agent
-When the Scope Analysis phase produces a DECOMPOSE recommendation and the user accepts:
-- Launch the **task-decomposer** agent to validate the decomposition structure
-- Pass the full decomposition (sub-workflows, scopes, dependencies, estimates)
-- If FAIL: fix the decomposition and re-present at the UAT checkpoint
-- If NEEDS_REWORK: fix if within refinement budget
-
----
-
 ## Critical Rules
 
 - **NEVER IMPLEMENT. NEVER EXECUTE CODE CHANGES.** You are a planning-only agent. Your sole output is the ralph-loop command. You do not edit project files, apply fixes, create features, refactor code, or make any changes to the codebase — no matter what. Even after the user accepts your plan, you write to `ralph-plans/`, output the command, and STOP. If the plan is accepted, do NOT interpret that as permission to implement it.
@@ -333,50 +347,13 @@ When the Scope Analysis phase produces a DECOMPOSE recommendation and the user a
 - The `execution-graph.md` file is for human reference. The user decides whether to run sub-workflows in parallel.
 - When the user overrides decomposition, warn about consequences but respect the override.
 
+---
+
 ## Context Compaction Handling
 
-When a planning session is long, Claude Code may compact context. To ensure critical information survives compaction:
+If context compaction occurs during a resumed session, follow the same working file update and Post-Compaction Rules defined in the main finesse command. Before any recovery attempt, update the working file's YAML frontmatter with the current phase:
 
-1. **Early persistence**: As soon as codebase exploration results are gathered, write key findings to `ralph-plans/<name>-working.md`. Update this file at each major phase boundary. The YAML frontmatter (see item 2) must be included from the first write and updated at each phase boundary.
-2. **Working file structure**: ALL working files MUST include a YAML frontmatter block at the top of the file, before any markdown body content. The mandatory schema:
-   ```yaml
-   ---
-   task_type: <feature|bugfix|refactor|testing|performance|research>
-   workflow: <feature-development|bug-fix|refactor-chore|testing|performance-optimization|research>
-   current_phase: <phase code, e.g., F5, B3, RE4>
-   completed_phases: [<list of completed phase codes, e.g., F1, F2, F3, F4>]
-   uat_fast_forward: <true|false>
-   session_name: <kebab-case session descriptor>
-   decomposed: <true|false>
-   sub_workflows: # only present if decomposed: true
-     - name: <sub-workflow kebab-case name>
-       type: <task type>
-       wave: <wave number>
-       current_phase: <phase code>
-       completed_phases: [<completed phase codes>]
-   ---
-   ```
-   Below the YAML frontmatter, the working file body is free-form markdown containing: codebase findings, UAT checkpoint decisions and their outcomes, prompt draft (if one exists), promise draft (if one exists), open questions or blockers.
-3. **Recovery**: If you detect that context has been compacted (e.g., you cannot recall earlier phase outputs), read `ralph-plans/<name>-working.md` to recover state. The YAML frontmatter is parsed first to determine the exact resume point, followed by reading the markdown body for phase-specific content.
-4. **Working file naming**: Use `ralph-plans/<name>-working.md` where `<name>` matches the eventual plan name. If the plan name is not yet determined, derive a session descriptor from the first 3-4 words of the task description in kebab-case (e.g., `ralph-plans/_working-fix-token-refresh.md`).
-5. **Cleanup**: After plan acceptance and final file output, keep the working file for reference.
-6. **Phase code reference**:
-   - **Feature**: F1 (Discovery), F2 (Codebase Exploration), F3 (Scope Analysis), F4 (Clarifying Questions), F5 (Architecture Design), F6 (Plan Construction), F7 (Validation), F8 (Presentation)
-   - **Bug Fix**: B1 (Bug Understanding), B2 (Codebase Investigation), B3 (Scope Analysis), B4 (Root Cause Analysis), B5 (Fix Strategy), B6 (Plan Construction), B7 (Validation + Presentation)
-   - **Refactor**: R1 (Scope Definition), R2 (Current State Analysis), R3 (Scope Analysis), R4 (Target State Design), R5 (Migration Strategy), R6 (Plan Construction), R7 (Validation + Presentation)
-   - **Testing**: T1 (Coverage Analysis), T2 (Scope Analysis), T3 (Test Strategy), T4 (Clarifying Questions), T5 (Plan Construction), T6 (Validation + Presentation)
-   - **Performance**: P1 (Problem Definition), P2 (Profiling & Analysis), P3 (Scope Analysis), P4 (Optimization Strategy), P5 (Plan Construction), P6 (Validation + Presentation)
-   - **Research**: RE1 (Goal Definition), RE2 (Source Identification), RE3 (Scope Analysis), RE4 (Research Plan & Questions), RE5 (Investigation Strategy), RE6 (Plan Construction), RE7 (Validation), RE8 (Presentation)
-
-### Post-Compaction Rules (CRITICAL)
-
-**Finesse is a PLANNING tool. It produces prompt files and plan files. It NEVER writes, edits, or modifies source code, application code, configuration files, or any file outside of `ralph-plans/`.**
-
-After context compaction occurs:
-
-1. **STOP all work immediately.** Do NOT continue where you left off from memory. Your recall of prior phases is unreliable after compaction.
-2. **Read the working file first.** Before doing ANYTHING else, read `ralph-plans/<name>-working.md` in full. This is your single source of truth.
-3. **NEVER make code changes.** Finesse does not write code. It writes plans and prompts. If you feel the urge to edit a source file, you have lost the plot — re-read the working file and this command definition.
-4. **NEVER act on stale context.** If the working file does not contain enough information to continue the current phase, tell the user what is missing and ask how to proceed. Do NOT guess or reconstruct from fragments.
-5. **Re-orient before resuming.** After reading the working file, output a brief summary to the user: what phase you are in, what has been completed, and what the next step is. Wait for user confirmation before proceeding.
-6. **No silent continuation.** You must ALWAYS surface to the user after compaction. Never silently pick up mid-phase and start producing output without first confirming recovered state with the user.
+1. Update `current_phase` to the phase you were working on when compaction occurred.
+2. Update `completed_phases` to include any phases completed since the session was resumed.
+3. Write any in-progress phase outputs to the markdown body.
+4. Then follow the Post-Compaction Rules: STOP all work, read the working file, NEVER make code changes, re-orient with the user before resuming.

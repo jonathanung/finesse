@@ -48,6 +48,20 @@ Plan a ralph-loop prompt for any development task.
 
 Cancel the current planning session without saving.
 
+### /finesse-resume [PATH]
+
+Resume an interrupted Finesse planning session from a working file.
+
+**Arguments:**
+- No arguments — scans `ralph-plans/` for working files, lists if multiple
+- `PATH` — path to a specific working file to resume from
+
+**Usage:**
+```
+/finesse-resume
+/finesse-resume ralph-plans/build-rest-api-working.md
+```
+
 ## What Happens
 
 1. **Task type detection** — Finesse classifies your task (feature, bugfix, refactor, testing, performance, research)
@@ -126,6 +140,16 @@ If you reject a plan with feedback:
 - Subsequent passes make targeted edits (the skeleton is already built)
 - All 5 validators re-run on the revised plan
 - You see the revised plan for another round of approval
+
+## Resuming Sessions
+
+Finesse saves progress to working files during long planning sessions. If a session is interrupted (context compaction, crash, new session), use `/finesse-resume` to continue:
+
+- The resume command recovers task type, completed phases, user decisions, and prompt drafts
+- Discovery phases are restarted from scratch (they require live interaction)
+- Later phases resume from where they left off
+- All UAT checkpoint decisions are preserved
+- Works with both single-workflow and multi-workflow (decomposed) sessions
 
 ## When to Use Finesse
 
