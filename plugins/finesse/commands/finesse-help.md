@@ -14,12 +14,14 @@ Finesse automatically detects your task type and runs a tailored workflow:
 
 | Task Type | Workflow |
 |---|---|
-| **Feature** | Discovery → Codebase Exploration → Clarifying Questions → Architecture Design (3 approaches) → Plan → Validate → Present |
-| **Bug Fix** | Bug Understanding → Codebase Investigation → Root Cause Analysis → Fix Strategy → Plan → Validate → Present |
-| **Refactor** | Scope Definition → Current State Analysis → Target State Design → Migration Strategy → Plan → Validate → Present |
-| **Testing** | Coverage Analysis → Test Strategy → Clarifying Questions → Plan → Validate → Present |
-| **Performance** | Problem Definition → Profiling & Analysis → Optimization Strategy → Plan → Validate → Present |
-| **Research** | Goal Definition → Source Identification → Research Plan & Questions → Investigation Strategy → Plan → Validate → Present |
+| **Feature** | Discovery (deep) → Codebase Exploration [UAT] → Clarifying Questions → Architecture Design [UAT] → Plan Construction [UAT] → Validate → Present |
+| **Bug Fix** | Bug Understanding (deep) → Codebase Investigation [UAT] → Root Cause Analysis [UAT] → Fix Strategy [UAT] → Plan → Validate → Present |
+| **Refactor** | Scope Definition (deep) → Current State Analysis [UAT] → Target State Design [UAT] → Migration Strategy [UAT] → Plan → Validate → Present |
+| **Testing** | Coverage Analysis [UAT] → Test Strategy [UAT] → Clarifying Questions → Plan → Validate → Present |
+| **Performance** | Problem Definition (deep) → Profiling & Analysis [UAT] → Optimization Strategy [UAT] → Plan → Validate → Present |
+| **Research** | Goal Definition (deep) → Source Identification [UAT] → Research Plan [UAT] → Investigation Strategy [UAT] → Plan → Validate → Present |
+
+`(deep)` = thorough probing phase with iterative back-and-forth. `[UAT]` = User Acceptance Testing checkpoint (see below).
 
 ## Available Commands
 
@@ -55,11 +57,23 @@ Cancel the current planning session without saving.
    - Refactors get dependency mapping + migration strategy
    - etc.
 3. **Clarifying questions** — Finesse asks you to resolve ambiguities (never guesses)
-4. **Plan construction** — Builds a structured ralph-loop prompt with cold start, phases, verification commands, guardrails
-5. **Parallel validation** — 5 agents review the plan simultaneously
-6. **Refinement** — Issues fixed automatically or flagged for your input
-7. **Presentation** — Plan shown for your approval
-8. **On acceptance** — Saved to `ralph-plans/`, you get the ralph-loop command
+4. **UAT checkpoints** — At strategic phases, Finesse presents its work and asks you to accept, provide feedback, make specific changes, or skip remaining checkpoints
+5. **Plan construction** — Builds a structured ralph-loop prompt with cold start, phases, verification commands, guardrails
+6. **Parallel validation** — 5 agents review the plan simultaneously
+7. **Refinement** — Issues fixed automatically or flagged for your input
+8. **Presentation** — Plan shown for your approval
+9. **On acceptance** — Saved to `ralph-plans/`, you get the ralph-loop command
+
+## UAT Checkpoints
+
+At strategic phases in each workflow (marked `[UAT]` in the table above), Finesse presents the phase output and asks for your input before proceeding. You can:
+
+- **Accept** — continue to the next phase
+- **Provide feedback** — the phase re-runs incorporating your feedback
+- **Make specific changes** — targeted edits to the phase output without re-running
+- **Accept and skip remaining UAT** — auto-approve all future checkpoints in this session (for experienced users)
+
+Discovery phases (marked `(deep)`) always require full confirmation, even if UAT is fast-forwarded. Finesse will never infer answers to questions it can ask you directly.
 
 ## Agents
 

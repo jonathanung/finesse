@@ -49,6 +49,7 @@ When the clarity-checker (or any agent) identifies ambiguities that require user
 - Do NOT guess or fill in blanks with assumptions
 - Wait for answers before revising the plan
 - Incorporate answers and re-validate
+- This is consistent with the core philosophy: never infer when you can ask. Validation ambiguities are just as important as planning ambiguities.
 
 ### Refinement Budget
 

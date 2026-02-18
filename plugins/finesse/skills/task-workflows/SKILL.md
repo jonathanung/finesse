@@ -8,6 +8,14 @@ After detecting the task type, follow the corresponding workflow below. Every wo
 
 ---
 
+## UAT Checkpoints
+
+Phases marked with `[UAT]` require a User Acceptance Testing checkpoint as defined in the main command (`finesse.md`). When you complete a `[UAT]` phase, follow the UAT Checkpoint Procedure before proceeding to the next phase.
+
+If the user has elected to fast-forward UAT (by selecting "Accept and skip remaining UAT" at any checkpoint), skip the checkpoint and proceed directly. Discovery/Understanding phase confirmations are never affected by fast-forward.
+
+---
+
 ## Task Type Detection
 
 Classify the user's task into one of these types based on their description:
@@ -27,18 +35,22 @@ If ambiguous, ask the user. Do not guess.
 
 ## Feature Development Workflow (7 phases)
 
-### Phase 1: Discovery
+### Phase 1: Discovery (deep)
 
-**Goal**: Understand what needs to be built.
+**Goal**: Understand what needs to be built — thoroughly.
 
 - Clarify the feature request if vague
 - Ask what problem it solves
 - Identify constraints and requirements
+- Probe for edge cases: What happens when this fails? What about empty states? Concurrent access?
+- Ask about the user's mental model: How do they envision this working from the user's perspective?
+- Ask about constraints they haven't mentioned: Performance requirements? Accessibility? Backward compatibility?
+- If the user's description is short or vague, ask at least 3 clarifying questions before summarizing
 - Summarize understanding and confirm with user
 
-Do NOT proceed until the user confirms your understanding is correct.
+Do NOT proceed until the user confirms your understanding is correct. This is NOT a UAT checkpoint — Discovery requires iterative back-and-forth until alignment is achieved.
 
-### Phase 2: Codebase Exploration
+### Phase 2: Codebase Exploration [UAT]
 
 **Goal**: Understand relevant existing code and patterns.
 
@@ -49,10 +61,10 @@ Launch 2-3 **code-explorer** agents in parallel via Task tool. Each explores a d
 
 After agents return, READ all essential files they identified. Build deep understanding before proceeding.
 
-Present a summary of findings to the user:
-- Similar features found and how they're implemented
-- Architecture patterns and conventions
-- Key files and their responsibilities
+**UAT presentation for this phase:**
+- **What was done**: Explored codebase for similar features, architecture patterns, and conventions.
+- **Key findings**: Similar features and how they are implemented, architecture patterns and conventions discovered, key files and their responsibilities.
+- **Impact on next phases**: These findings constrain the architecture design and inform clarifying questions.
 
 ### Phase 3: Clarifying Questions
 
@@ -69,7 +81,7 @@ Based on codebase exploration, identify underspecified aspects:
 
 Present ALL questions in an organized list. **Wait for answers before proceeding.**
 
-### Phase 4: Architecture Design
+### Phase 4: Architecture Design [UAT]
 
 **Goal**: Design multiple implementation approaches.
 
@@ -78,9 +90,14 @@ Launch 2-3 **code-architect** agents in parallel, each with a different focus:
 - Agent 2 (Clean Architecture): "Design an implementation prioritizing maintainability, clean abstractions, and testability. Context: [same]"
 - Agent 3 (Pragmatic Balance): "Design an implementation balancing speed and quality, fitting existing patterns. Context: [same]"
 
-Present all approaches with trade-offs. Form and state your recommendation with reasoning. Ask which approach the user prefers.
+**UAT presentation for this phase:**
+- **What was done**: Designed 2-3 implementation approaches with different focuses (minimal changes, clean architecture, pragmatic balance).
+- **Key findings**: Each approach with its architecture decisions, component design, trade-offs, and verification strategy. Your recommendation with reasoning.
+- **Impact on next phases**: The chosen approach determines the plan's phase structure, file scope, and verification commands.
 
-### Phase 5: Plan Construction
+Note: When the user selects "Accept" at this checkpoint, ask which approach they are accepting (or if they accept your recommendation). When they select "Provide feedback" or "Make specific changes", the feedback may target a specific approach or request an entirely different direction.
+
+### Phase 5: Plan Construction [UAT]
 
 **Goal**: Build the ralph-loop prompt from the chosen architecture.
 
@@ -97,6 +114,11 @@ Determine ralph-loop `--max-iterations` with reasoning:
 - Medium feature (3-5 files): 12-18
 - Complex feature (6+ files): 18-25
 
+**UAT presentation for this phase:**
+- **What was done**: Constructed the full ralph-loop prompt from the chosen architecture.
+- **Key findings**: The complete prompt including cold start, ordered phases, verification commands, scope constraints, guardrails, and completion criteria. The recommended `--max-iterations` with reasoning.
+- **Impact on next phases**: This is the near-final prompt. After acceptance, it goes to the validation agents for automated review.
+
 ### Phase 6: Validation
 
 Launch all 5 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
@@ -109,7 +131,7 @@ Present the validated plan. On acceptance, save to `ralph-plans/` and output the
 
 ## Bug Fix Workflow (6 phases)
 
-### Phase 1: Bug Understanding
+### Phase 1: Bug Understanding (deep)
 
 **Goal**: Fully understand the bug before touching code.
 
@@ -120,10 +142,14 @@ Gather from the user:
 - When did it start? (recent change, always broken, intermittent?)
 - Error messages, stack traces, logs (if available)
 - Which environments? (dev, staging, prod)
+- Has anything changed recently that might have caused this?
+- Is this blocking other work or users?
 
-Do NOT proceed until you have a clear reproduction path.
+If the user provides sparse information, ask explicitly for missing details. Do NOT proceed with partial understanding.
 
-### Phase 2: Codebase Investigation
+Do NOT proceed until you have a clear reproduction path. This is NOT a UAT checkpoint — Bug Understanding requires iterative back-and-forth until the reproduction path is clear.
+
+### Phase 2: Codebase Investigation [UAT]
 
 **Goal**: Trace the bug through the code.
 
@@ -133,7 +159,12 @@ Launch 2 **code-explorer** agents in parallel:
 
 After agents return, read all identified files. Map the exact code path where the bug occurs.
 
-### Phase 3: Root Cause Analysis
+**UAT presentation for this phase:**
+- **What was done**: Traced the execution path and investigated recent changes related to the bug.
+- **Key findings**: The exact code path where the bug occurs, relevant files and functions, recent changes to the affected area, related tests.
+- **Impact on next phases**: This evidence drives root cause analysis.
+
+### Phase 3: Root Cause Analysis [UAT]
 
 **Goal**: Identify the actual root cause, not just symptoms.
 
@@ -141,11 +172,15 @@ Based on investigation:
 - Present your hypothesis for the root cause with evidence
 - Identify whether this is a logic error, data issue, race condition, missing edge case, etc.
 - Check if there are related bugs (same root cause could affect other paths)
-- Ask the user to confirm the hypothesis makes sense
 
 If multiple possible causes, present them ranked by likelihood.
 
-### Phase 4: Fix Strategy
+**UAT presentation for this phase:**
+- **What was done**: Analyzed investigation findings to identify the root cause.
+- **Key findings**: Root cause hypothesis with supporting evidence, type of error (logic, data, race condition, etc.), related bugs that share the same root cause (if any).
+- **Impact on next phases**: The confirmed root cause determines the fix strategy.
+
+### Phase 4: Fix Strategy [UAT]
 
 **Goal**: Design the fix with regression prevention.
 
@@ -154,7 +189,10 @@ If multiple possible causes, present them ranked by likelihood.
 - Identify what existing tests might need updating
 - Check for related code that might have the same bug
 
-Present the strategy to the user. Confirm before building the prompt.
+**UAT presentation for this phase:**
+- **What was done**: Designed a fix strategy with regression prevention.
+- **Key findings**: The minimal fix for the root cause, tests to add for regression prevention, existing tests to update, related code to check.
+- **Impact on next phases**: The accepted fix strategy becomes the plan's phase structure and scope.
 
 ### Phase 5: Plan Construction
 
@@ -179,7 +217,7 @@ Validate and present. Same as feature workflow phases 6-7.
 
 ## Refactor/Chore Workflow (6 phases)
 
-### Phase 1: Scope Definition
+### Phase 1: Scope Definition (deep)
 
 **Goal**: Define exactly what's being refactored and why.
 
@@ -190,7 +228,11 @@ Clarify with the user:
 - What must NOT change? (external behavior, APIs, interfaces)
 - What's the acceptable risk level?
 
-### Phase 2: Current State Analysis
+If the user describes the refactor vaguely (e.g., "clean up the auth module"), ask: What specifically is wrong with it today? What does "clean" look like? What would success look like?
+
+This is NOT a UAT checkpoint — Scope Definition requires iterative back-and-forth until the scope is clearly defined.
+
+### Phase 2: Current State Analysis [UAT]
 
 **Goal**: Map what exists before changing it.
 
@@ -200,7 +242,12 @@ Launch 1-2 **code-explorer** agents:
 
 After agents return, read essential files. Build a dependency map.
 
-### Phase 3: Target State Design
+**UAT presentation for this phase:**
+- **What was done**: Mapped the current architecture, dependencies, callers, and tests for the area being refactored.
+- **Key findings**: All files involved, dependency map, callers, existing tests, things that would break if the code changed.
+- **Impact on next phases**: This dependency map constrains the target state design and migration strategy.
+
+### Phase 3: Target State Design [UAT]
 
 **Goal**: Define the end state concretely.
 
@@ -209,9 +256,12 @@ After agents return, read essential files. Build a dependency map.
 - Identify breaking changes and migration path
 - If adopting a new pattern, show examples of the pattern from the codebase (or propose one)
 
-Ask the user to confirm the target state.
+**UAT presentation for this phase:**
+- **What was done**: Designed the target architecture with specific file changes and dependency updates.
+- **Key findings**: Target architecture, specific file changes, dependency updates, breaking changes, migration path, pattern examples.
+- **Impact on next phases**: The confirmed target state drives the migration strategy.
 
-### Phase 4: Migration Strategy
+### Phase 4: Migration Strategy [UAT]
 
 **Goal**: Plan the safest path from current to target state.
 
@@ -221,7 +271,10 @@ Design an incremental migration that:
 - Can be partially reverted if something goes wrong
 - Updates callers before removing old interfaces
 
-Present the strategy. Confirm with user.
+**UAT presentation for this phase:**
+- **What was done**: Designed an incremental migration strategy from current to target state.
+- **Key findings**: Migration phases in order, verification at each step, revert strategy, caller update plan.
+- **Impact on next phases**: The accepted migration strategy becomes the plan's phase structure.
 
 ### Phase 5: Plan Construction
 
@@ -245,7 +298,7 @@ Validate and present.
 
 ## Testing Workflow (5 phases)
 
-### Phase 1: Coverage Analysis
+### Phase 1: Coverage Analysis [UAT]
 
 **Goal**: Understand what's tested and what isn't.
 
@@ -259,7 +312,14 @@ Ask the user:
 - Any specific edge cases or scenarios to cover?
 - What's the target coverage goal?
 
-### Phase 2: Test Strategy
+After gathering exploration results AND user answers, synthesize a coverage picture.
+
+**UAT presentation for this phase:**
+- **What was done**: Analyzed existing test coverage and gathered testing priorities from the user.
+- **Key findings**: Testing framework and conventions, coverage map (what is tested vs not), user's priority areas and coverage goals.
+- **Impact on next phases**: This drives the test strategy prioritization.
+
+### Phase 2: Test Strategy [UAT]
 
 **Goal**: Prioritize what to test and how.
 
@@ -269,7 +329,10 @@ Based on exploration:
 - Identify shared test utilities or fixtures to create
 - Map dependencies that need mocking/stubbing
 
-Present the strategy. Confirm with user.
+**UAT presentation for this phase:**
+- **What was done**: Designed a test strategy prioritizing untested areas by risk.
+- **Key findings**: Untested functions/paths ranked by risk, recommended test types per area, shared utilities or fixtures to create, dependencies needing mocking/stubbing.
+- **Impact on next phases**: The accepted strategy determines which tests to write and in what order.
 
 ### Phase 3: Clarifying Questions
 
@@ -302,7 +365,7 @@ Validate and present.
 
 ## Performance Optimization Workflow (5 phases)
 
-### Phase 1: Problem Definition
+### Phase 1: Problem Definition (deep)
 
 **Goal**: Define what's slow, how slow, and what's acceptable.
 
@@ -313,7 +376,9 @@ Clarify with the user:
 - How to measure? (benchmark command, profiling tool, load test)
 - What trade-offs are acceptable? (memory vs speed, complexity vs performance)
 
-### Phase 2: Profiling & Analysis
+Do not accept vague performance complaints. Insist on specifics: which operation, what latency, what is acceptable. This is NOT a UAT checkpoint — Problem Definition requires iterative back-and-forth until the performance target is concrete.
+
+### Phase 2: Profiling & Analysis [UAT]
 
 **Goal**: Find the actual bottleneck, don't guess.
 
@@ -321,9 +386,12 @@ Launch 1-2 **code-explorer** agents:
 - Agent 1: "Trace the execution path of [slow operation]. Identify database queries, external API calls, loops, and data transformations. Flag anything that could be O(n²) or worse."
 - Agent 2: "Find caching, indexing, and optimization patterns already used in this codebase. Identify if [slow area] is missing any of these."
 
-Present findings: where time is actually spent, not where you think it might be.
+**UAT presentation for this phase:**
+- **What was done**: Traced execution paths and analyzed where time is actually spent.
+- **Key findings**: Identified bottlenecks with evidence (database queries, external calls, loops, data transformations), existing optimization patterns in the codebase, what the slow area is missing.
+- **Impact on next phases**: These findings drive the optimization strategy — what to optimize first and how.
 
-### Phase 3: Optimization Strategy
+### Phase 3: Optimization Strategy [UAT]
 
 **Goal**: Design the optimization with measurable targets.
 
@@ -331,7 +399,10 @@ Present findings: where time is actually spent, not where you think it might be.
 - Each approach must have a measurable before/after verification
 - Identify risks (correctness issues, cache invalidation complexity, etc.)
 
-Confirm approach with user.
+**UAT presentation for this phase:**
+- **What was done**: Designed optimization approaches ranked by expected impact.
+- **Key findings**: Optimization approaches with expected impact, measurable before/after verification for each, risks and trade-offs.
+- **Impact on next phases**: The accepted optimization strategy determines the plan's phase structure and verification benchmarks.
 
 ### Phase 4: Plan Construction
 
@@ -355,7 +426,7 @@ Validate and present.
 
 ## Research Workflow (7 phases)
 
-### Phase 1: Research Goal Definition
+### Phase 1: Research Goal Definition (deep)
 
 **Goal**: Clarify what the research should answer and what the deliverable looks like.
 
@@ -365,10 +436,13 @@ Gather from the user:
 - What are the scope boundaries? (which parts of the codebase, which technologies, what's out of scope)
 - How deep should the investigation go? (surface-level overview vs deep-dive analysis)
 - Who is the audience? (team members, future self, stakeholders)
+- Who will act on this research? What decision will it inform?
 
-Do NOT proceed until the research question is specific enough to have a clear "done" state.
+Push back on overly broad research questions. A good research question has a clear "done" state.
 
-### Phase 2: Source Identification
+Do NOT proceed until the research question is specific enough to have a clear "done" state. This is NOT a UAT checkpoint — Goal Definition requires iterative back-and-forth until the research question is sharp.
+
+### Phase 2: Source Identification [UAT]
 
 **Goal**: Map codebase sources, architecture, and prior decisions related to the research topic.
 
@@ -379,12 +453,12 @@ Launch 2-3 **code-explorer** agents in parallel:
 
 After agents return, READ all identified files. Build a source inventory before proceeding.
 
-Present a summary:
-- Sources found and their relevance
-- Prior decisions or context discovered
-- Gaps where external research may be needed
+**UAT presentation for this phase:**
+- **What was done**: Mapped codebase sources, architecture, and prior decisions related to the research topic.
+- **Key findings**: Sources found and their relevance, prior decisions or context discovered, gaps where external research may be needed.
+- **Impact on next phases**: This source inventory shapes the research plan outline and investigation strategy.
 
-### Phase 3: Research Plan & Clarifying Questions
+### Phase 3: Research Plan & Clarifying Questions [UAT]
 
 **Goal**: Propose a research outline and resolve ambiguities before investigation begins.
 
@@ -399,9 +473,14 @@ Present ALL clarifying questions:
 - Are there constraints or preferences that should bias the analysis?
 - Is there a preferred format for the deliverable?
 
-**Wait for answers and outline confirmation before proceeding.**
+**Wait for the user to answer all clarifying questions.** Then incorporate their answers into the research plan.
 
-### Phase 4: Investigation Strategy
+**UAT presentation for this phase:**
+- **What was done**: Proposed research outline, asked clarifying questions, and incorporated the user's answers.
+- **Key findings**: The finalized document outline with sections, expected depth per section, what can be answered from the codebase vs external knowledge.
+- **Impact on next phases**: This outline structures the investigation strategy and becomes the deliverable skeleton.
+
+### Phase 4: Investigation Strategy [UAT]
 
 **Goal**: Define what to investigate for each section and how to verify findings.
 
@@ -416,7 +495,10 @@ Key constraints:
 - Every claim must cite evidence: file:line, command output, or URL
 - Read-only approach to source code — research must NOT modify any existing files
 
-Present the investigation strategy. Confirm with user.
+**UAT presentation for this phase:**
+- **What was done**: Defined the investigation strategy for each section of the research outline.
+- **Key findings**: Per-section investigation plan (questions to answer, evidence needed, commands to run), rabbit holes to avoid, constraints.
+- **Impact on next phases**: The accepted investigation strategy drives the ralph-loop prompt's phase structure.
 
 ### Phase 5: Plan Construction
 
