@@ -62,8 +62,12 @@ When the clarity-checker (or any agent) identifies ambiguities that require user
 
 Once the user accepts:
 1. Create `ralph-plans/` directory in workspace root
-2. Write the plan to `ralph-plans/<descriptive-kebab-case-name>.md`
-3. Output the exact ralph-loop command with:
-   - The full prompt text
-   - `--completion-promise` with the chosen phrase
-   - `--max-iterations` with the agent-recommended count and reasoning
+2. Write THREE files:
+   - `ralph-plans/<name>.md` — prompt text ONLY (no metadata, no headers — the raw prompt content)
+   - `ralph-plans/<name>-promise.txt` — completion promise text ONLY (no quotes)
+   - `ralph-plans/<name>-plan.md` — metadata: task type, summary, codebase context, approach with rationale, recommended iterations with reasoning, unresolved warnings
+3. Output the exact ralph-loop command:
+   ```
+   /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
+   ```
+   The command uses `$(cat ...)` shell expansion to read the prompt and promise from their files at runtime. The `<name>.md` file MUST contain only the prompt text for this to work correctly.

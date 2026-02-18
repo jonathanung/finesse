@@ -62,7 +62,7 @@ Cancel the current planning session without saving.
 6. **Parallel validation** — 5 agents review the plan simultaneously
 7. **Refinement** — Issues fixed automatically or flagged for your input
 8. **Presentation** — Plan shown for your approval
-9. **On acceptance** — Saved to `ralph-plans/`, you get the ralph-loop command
+9. **On acceptance** — Three files saved to `ralph-plans/` (prompt, promise, metadata), you get the ralph-loop command
 
 ## UAT Checkpoints
 
@@ -94,10 +94,15 @@ Discovery phases (marked `(deep)`) always require full confirmation, even if UAT
 
 ## Output
 
-Accepted plans are saved to `ralph-plans/<descriptive-name>.md` in your workspace root. You get a ready-to-run ralph-loop command with:
-- The validated prompt
-- A recommended `--max-iterations` (determined by Finesse with reasoning based on task scope)
-- A `--completion-promise` phrase
+Accepted plans are saved as three files in `ralph-plans/`:
+- `<name>.md` — prompt text only (referenced by the command via `$(cat ...)`)
+- `<name>-promise.txt` — completion promise text only
+- `<name>-plan.md` — metadata: task type, approach, rationale, iteration reasoning
+
+You get a ready-to-run command:
+```
+/ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
+```
 
 ## Plan Rejection
 

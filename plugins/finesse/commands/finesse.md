@@ -144,17 +144,26 @@ Present the plan via ExitPlanMode. The plan file must contain:
 5. **Recommended `--max-iterations`** with reasoning
 6. **`--completion-promise`** text
 7. **Unresolved warnings** (if any from validation)
-8. **The exact ralph-loop command to run**
+8. **The exact ralph-loop command to run** (using file references — see User Decision below)
+
+Note: The presentation is for the user to review. The actual files written on acceptance are described under User Decision.
 
 ### User Decision
 
 **If ACCEPTED:**
 1. Create `ralph-plans/` in workspace root if needed
-2. Write plan to `ralph-plans/<descriptive-kebab-case-name>.md`
+2. Write THREE files:
+   - `ralph-plans/<name>.md` — the prompt text ONLY (no metadata, no YAML frontmatter, no markdown headers — just the raw prompt that the ralph-loop agent will read)
+   - `ralph-plans/<name>-promise.txt` — the completion promise text ONLY (no quotes, no extra content)
+   - `ralph-plans/<name>-plan.md` — metadata for human reference: task type, summary, codebase context, chosen approach with rationale, recommended --max-iterations with reasoning, unresolved warnings (if any)
 3. Output the exact command:
    ```
-   /ralph-loop <PROMPT_TEXT> --completion-promise '<TEXT>' --max-iterations <N>
+   /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
    ```
+   Where `<name>` is the descriptive-kebab-case-name used in the filenames above.
+4. Keep any working file (`ralph-plans/<name>-working.md`) from this planning session for reference.
+
+**IMPORTANT**: The `<name>.md` file must be valid as a direct `$(cat ...)` argument. This means: no markdown metadata headers, no YAML frontmatter, starts directly with the prompt content (e.g., "You are iterating on..."). The file IS the prompt, nothing more.
 
 **If REJECTED with feedback:**
 1. Reset refinement counter to 0
@@ -200,3 +209,15 @@ When launching **code-architect** agents for the feature workflow and the user r
 - When you encounter ANY knowledge gap — missing requirement, ambiguous scope, unstated preference — ASK the user. Do not infer, default, or assume.
 - Discovery phases (F1, B1, R1, P1, RE1) are the deepest user interactions. Probe for constraints, edge cases, and the user's mental model. Never rush.
 - UAT fast-forward does NOT affect Discovery/Understanding phase confirmations — those always happen.
+- The final deliverable is ALWAYS the ralph-loop command using file references — NEVER output the raw prompt inline in the command, and NEVER execute code changes directly.
+- Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata/rationale). The `$(cat ...)` command references the first two.
+
+## Context Compaction Handling
+
+When a planning session is long, Claude Code may compact context. To ensure critical information survives compaction:
+
+1. **Early persistence**: As soon as codebase exploration results are gathered, write key findings to `ralph-plans/<name>-working.md`. Update this file at each major phase boundary.
+2. **Working file structure**: The working file should contain: Task type and description, Critical codebase findings (file paths, patterns, conventions), User decisions from UAT checkpoints, Current phase and what remains, Current prompt draft (if one exists), Completion promise draft (if one exists), Open questions or blockers.
+3. **Recovery**: If you detect that context has been compacted (e.g., you cannot recall earlier phase outputs), read `ralph-plans/<name>-working.md` to recover state.
+4. **Working file naming**: Use `ralph-plans/<name>-working.md` where `<name>` matches the eventual plan name. If the plan name is not yet determined, derive a session descriptor from the first 3-4 words of the task description in kebab-case (e.g., `ralph-plans/_working-fix-token-refresh.md`).
+5. **Cleanup**: After plan acceptance and final file output, keep the working file for reference.

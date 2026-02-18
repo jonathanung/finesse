@@ -27,7 +27,7 @@ You → /finesse "vague idea"
        ↓
   Presentation  ←  you approve or reject
        ↓
-  On Accept → ralph-plans/todo-api-with-auth.md + copy-paste command
+  On Accept → ralph-plans/<name>.md + <name>-promise.txt + <name>-plan.md + copy-paste command
 ```
 
 ## Installation
@@ -88,10 +88,13 @@ Plan a ralph-loop prompt for any development task.
 For `/finesse Fix the token refresh bug in auth.ts`, Finesse produces something like:
 
 ```bash
-/ralph-loop <PROMPT> --completion-promise 'Token refresh succeeds for expired tokens and test_token_refresh passes' --max-iterations 8
+/ralph-loop:ralph-loop $(cat ralph-plans/fix-token-refresh-auth.md) --completion-promise "$(cat ralph-plans/fix-token-refresh-auth-promise.txt)" --max-iterations=8
 ```
 
-The saved plan in `ralph-plans/fix-token-refresh-auth.md` includes a cold start paragraph, ordered fix-then-test phases, specific verification commands, and guardrails like "Do NOT modify the token generation logic."
+Finesse saves three files:
+- `ralph-plans/fix-token-refresh-auth.md` — the prompt only: cold start paragraph, ordered fix-then-test phases, verification commands, and guardrails
+- `ralph-plans/fix-token-refresh-auth-promise.txt` — the completion promise text
+- `ralph-plans/fix-token-refresh-auth-plan.md` — metadata: task type, codebase context, chosen approach with rationale, iteration reasoning
 
 ### `/cancel-finesse`
 
@@ -165,10 +168,16 @@ If the scope-safety-reviewer flags `HIGH_RISK`, Finesse will ask you to explicit
 When you accept a plan, Finesse:
 
 1. Creates `ralph-plans/` in your workspace root (if it doesn't exist)
-2. Saves the plan to `ralph-plans/<descriptive-name>.md`
-3. Outputs the exact command to run (prompt text, `--completion-promise`, and `--max-iterations` with reasoning)
+2. Saves three files:
+   - `ralph-plans/<name>.md` — the prompt text only (used by the command via `$(cat ...)`)
+   - `ralph-plans/<name>-promise.txt` — the completion promise text only
+   - `ralph-plans/<name>-plan.md` — human-readable metadata: task type, codebase context, chosen approach, rationale, iteration reasoning, unresolved warnings
+3. Outputs the exact command:
+   ```
+   /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
+   ```
 
-The saved plan file includes the task type, codebase context from exploration, chosen approach with rationale, the full ralph-loop prompt, and any unresolved warnings from validation.
+The prompt file contains only the raw prompt so that `$(cat ...)` shell expansion works correctly. Metadata and rationale live in the separate `-plan.md` file.
 
 ## Plan Rejection & Iteration
 

@@ -87,4 +87,16 @@ output <promise>[EXACT_TEXT]</promise>. This must be unequivocally true.
 Do not output the completion promise unless every criterion is met.
 ```
 
+## File Output Format
+
+When the plan is accepted, the prompt you construct is written to `ralph-plans/<name>.md` as a **prompt-only file**. This means:
+
+- The file must contain ONLY the prompt text — no metadata, no YAML frontmatter, no markdown headers describing the plan
+- The file starts directly with the cold start paragraph (e.g., "You are iterating on...")
+- The file is referenced via `$(cat ralph-plans/<name>.md)` in the ralph-loop command
+- Metadata (task type, context, approach, rationale) goes in a separate `ralph-plans/<name>-plan.md` file
+- The completion promise text goes in `ralph-plans/<name>-promise.txt`
+
+Keep this in mind when constructing the prompt: everything you write using the template above becomes the content of the prompt-only file. Do not mix in non-prompt content.
+
 Write every prompt like a QA spec for a contractor you cannot talk to until the job is done. Every ambiguity is a potential infinite loop.
