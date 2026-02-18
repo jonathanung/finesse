@@ -1,7 +1,7 @@
 ---
 description: "Plan and validate a ralph-loop prompt for autonomous development"
 argument-hint: "TASK_DESCRIPTION [--max-refinements N]"
-allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Write(ralph-plans/*)", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
+allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -48,17 +48,17 @@ Once classified, follow the corresponding workflow from the **task-workflows** s
 
 ## Workflow Quick Reference
 
-### Feature: F1 Discovery (deep) → F2 Codebase Exploration [UAT] → F3 Clarifying Questions → F4 Architecture Design [UAT] → F5 Plan Construction [UAT] → Validate → Present
+### Feature: F1 Discovery (deep) → F2 Codebase Exploration [UAT] → F3 Scope Analysis [UAT] → F4 Clarifying Questions → F5 Architecture Design [UAT] → F6 Plan Construction [UAT] → Validate → Present
 
-### Bug Fix: B1 Bug Understanding (deep) → B2 Codebase Investigation [UAT] → B3 Root Cause Analysis [UAT] → B4 Fix Strategy [UAT] → Plan → Validate → Present
+### Bug Fix: B1 Bug Understanding (deep) → B2 Codebase Investigation [UAT] → B3 Scope Analysis [UAT] → B4 Root Cause Analysis [UAT] → B5 Fix Strategy [UAT] → Plan → Validate → Present
 
-### Refactor: R1 Scope Definition (deep) → R2 Current State Analysis [UAT] → R3 Target State Design [UAT] → R4 Migration Strategy [UAT] → Plan → Validate → Present
+### Refactor: R1 Scope Definition (deep) → R2 Current State Analysis [UAT] → R3 Scope Analysis [UAT] → R4 Target State Design [UAT] → R5 Migration Strategy [UAT] → Plan → Validate → Present
 
-### Testing: T1 Coverage Analysis [UAT] → T2 Test Strategy [UAT] → T3 Clarifying Questions → Plan → Validate → Present
+### Testing: T1 Coverage Analysis [UAT] → T2 Scope Analysis [UAT] → T3 Test Strategy [UAT] → T4 Clarifying Questions → Plan → Validate → Present
 
-### Performance: P1 Problem Definition (deep) → P2 Profiling & Analysis [UAT] → P3 Optimization Strategy [UAT] → Plan → Validate → Present
+### Performance: P1 Problem Definition (deep) → P2 Profiling & Analysis [UAT] → P3 Scope Analysis [UAT] → P4 Optimization Strategy [UAT] → Plan → Validate → Present
 
-### Research: RE1 Goal Definition (deep) → RE2 Source Identification [UAT] → RE3 Research Plan & Questions [UAT] → RE4 Investigation Strategy [UAT] → Plan → Validate → Present
+### Research: RE1 Goal Definition (deep) → RE2 Source Identification [UAT] → RE3 Scope Analysis [UAT] → RE4 Research Plan & Questions [UAT] → RE5 Investigation Strategy [UAT] → Plan → Validate → Present
 
 Phases marked `(deep)` require thorough probing before proceeding. Phases marked `[UAT]` require a User Acceptance Testing checkpoint — see UAT Checkpoint Procedure below.
 
@@ -101,6 +101,28 @@ Previous inline confirmation gates within `[UAT]`-marked phases (e.g., "Present 
 
 ---
 
+## Multi-Workflow Branching
+
+After the Scope Analysis & Decomposition phase, the workflow branches:
+
+### Single Workflow Path
+
+If decomposition was not warranted (code-architect recommended SINGLE_WORKFLOW and user accepted):
+
+Continue with the remaining phases as a single linear workflow. Output format: flat `ralph-plans/<name>.md`, `<name>-promise.txt`, `<name>-plan.md` (unchanged from v0.2.0).
+
+### Multi-Workflow Path
+
+If decomposition was accepted:
+
+1. **Shared context**: Exploration/investigation findings from earlier phases are shared across ALL sub-workflows. Do NOT re-explore for each.
+2. **Per-sub-workflow phases**: Starting from the phase after scope analysis, run remaining workflow phases independently for each sub-workflow. Each gets its own clarifying questions (if applicable), architecture/strategy, plan construction, and UAT checkpoints (unless fast-forwarded).
+3. **Processing order**: Process sub-workflows in wave order (Wave 1 first, then Wave 2). Within a wave, process sequentially to avoid overwhelming the user with parallel UAT.
+4. **Output format**: Multi-workflow session directory structure (see meta-prompting skill for details).
+5. **Execution graph**: Generate `execution-graph.md` showing wave structure, dependencies, and recommended execution order.
+
+---
+
 ## Common Final Phases (all task types)
 
 ### Plan Construction
@@ -116,6 +138,15 @@ Build a complete ralph-loop prompt using the meta-prompting skill template. The 
 7. **Completion signal** — explicit `<promise>` with ALL conditions listed
 
 Determine ralph-loop `--max-iterations` with reasoning. Refer to the iteration count table in the **task-workflows** skill for task-specific guidance.
+
+### Multi-Workflow Plan Construction
+
+When the Scope Analysis phase resulted in an accepted decomposition:
+
+1. **Shared context**: Exploration findings and architecture decisions from earlier phases apply to ALL sub-workflows. Do not re-explore or re-design.
+2. **Per-sub-workflow loop**: For each sub-workflow in wave order, construct a ralph-loop prompt using the meta-prompting skill template, scoped to that sub-workflow's concern and files. The cold start paragraph must reference the shared architecture context. Include cross-sub-workflow guardrails: "Do NOT modify files outside this sub-workflow's scope: [list]."
+3. Each sub-workflow prompt gets its own iteration count recommendation.
+4. **Execution graph**: Build an `execution-graph.md` documenting wave order, dependencies, and run instructions.
 
 ### Validation
 
@@ -136,6 +167,8 @@ All agents use the same verdict vocabulary: `PASS`, `FAIL`, or `NEEDS_REWORK`.
 Each fix-and-revalidate cycle costs one refinement iteration against your `--max-refinements` budget. When revalidating after fixes, re-run ALL 5 agents to catch regressions.
 
 If budget exhausted without full PASS: present the plan with explicit warnings listing every unresolved issue and which agent flagged it.
+
+In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 5 validators. A FAIL on any sub-workflow blocks presentation of the entire decomposition.
 
 ### Presentation
 
@@ -168,7 +201,24 @@ Note: The presentation is for the user to review. The actual files written on ac
 
 **IMPORTANT**: The `<name>.md` file must be valid as a direct `$(cat ...)` argument. This means: no markdown metadata headers, no YAML frontmatter, starts directly with the prompt content (e.g., "You are iterating on..."). The file IS the prompt, nothing more.
 
-**STOP HERE.** After outputting the command, your job is done. Do NOT proceed to implement the plan. Do NOT edit any project files. Do NOT apply the changes described in the prompt. The user will run the ralph-loop command themselves. If the user asks you to implement the changes directly (without ralph-loop), they must do so outside of a `/finesse` session.
+**If ACCEPTED (Multi-Workflow):**
+1. Create `ralph-plans/<session-name>/` directory
+2. For each wave and task, create directories and write three files:
+   - `ralph-plans/<session-name>/wave-<N>/<task-name>/prompt.md` — sub-workflow prompt text ONLY
+   - `ralph-plans/<session-name>/wave-<N>/<task-name>/promise.txt` — sub-workflow completion promise ONLY
+   - `ralph-plans/<session-name>/wave-<N>/<task-name>/plan.md` — sub-workflow metadata
+3. Write `ralph-plans/<session-name>/execution-graph.md` with wave structure, dependency rationale, and per-task commands
+4. Output ALL commands grouped by wave:
+   ```
+   ## Wave 1 (run in parallel)
+   /ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-1/<task-1>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-1/<task-1>/promise.txt)" --max-iterations=<N>
+
+   ## Wave 2 (run after Wave 1 completes)
+   /ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-2/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-2/<task>/promise.txt)" --max-iterations=<N>
+   ```
+5. Single-workflow output uses the existing flat format (unchanged).
+
+**STOP HERE.** After outputting the command(s), your job is done. Do NOT proceed to implement the plan. Do NOT edit any project files. Do NOT apply the changes described in the prompt. The user will run the ralph-loop command themselves. If the user asks you to implement the changes directly (without ralph-loop), they must do so outside of a `/finesse` session.
 
 **If REJECTED with feedback:**
 1. Reset refinement counter to 0
@@ -196,6 +246,19 @@ When launching **code-architect** agents for the feature workflow and the user r
 - Design a single refined approach based on their input
 - Do NOT re-present the same 3 approaches
 
+### Code Architect in Decomposition Mode
+When launching **code-architect** for scope analysis (not architecture design):
+- Set the mode to 'decomposition' in the task prompt
+- Pass the exploration findings, task type, and task requirements
+- The architect returns either SINGLE_WORKFLOW or DECOMPOSE with sub-workflow structure
+
+### Task Decomposer Agent
+When the Scope Analysis phase produces a DECOMPOSE recommendation and the user accepts:
+- Launch the **task-decomposer** agent to validate the decomposition structure
+- Pass the full decomposition (sub-workflows, scopes, dependencies, estimates)
+- If FAIL: fix the decomposition and re-present at the UAT checkpoint
+- If NEEDS_REWORK: fix if within refinement budget
+
 ---
 
 ## Critical Rules
@@ -217,13 +280,18 @@ When launching **code-architect** agents for the feature workflow and the user r
 - UAT fast-forward does NOT affect Discovery/Understanding phase confirmations — those always happen.
 - The final deliverable is ALWAYS the ralph-loop command using file references — NEVER output the raw prompt inline in the command. After outputting the command, STOP. Do not continue to implementation under any circumstances.
 - Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata/rationale). The `$(cat ...)` command references the first two.
+- When decomposition is accepted, run plan construction and validation PER sub-workflow. Exploration and architecture are shared and NOT re-run.
+- Multi-Workflow output uses the wave/task directory structure. Single-workflow output keeps the flat `ralph-plans/<name>.*` format. NEVER mix the two formats.
+- Each sub-workflow prompt must be fully self-contained — include all relevant shared context inline. Sub-workflow prompts are read via `$(cat ...)` and have no access to sibling files.
+- The `execution-graph.md` file is for human reference. The user decides whether to run sub-workflows in parallel.
+- When the user overrides decomposition, warn about consequences but respect the override.
 
 ## Context Compaction Handling
 
 When a planning session is long, Claude Code may compact context. To ensure critical information survives compaction:
 
 1. **Early persistence**: As soon as codebase exploration results are gathered, write key findings to `ralph-plans/<name>-working.md`. Update this file at each major phase boundary.
-2. **Working file structure**: The working file should contain: Task type and description, Critical codebase findings (file paths, patterns, conventions), User decisions from UAT checkpoints, Current phase and what remains, Current prompt draft (if one exists), Completion promise draft (if one exists), Open questions or blockers.
+2. **Working file structure**: The working file should contain: Task type and description, Critical codebase findings (file paths, patterns, conventions), User decisions from UAT checkpoints, Current phase and what remains, Current prompt draft (if one exists), Completion promise draft (if one exists), Open questions or blockers, Decomposition results (if multi-workflow): sub-workflow names, types, scopes, dependencies, wave assignments.
 3. **Recovery**: If you detect that context has been compacted (e.g., you cannot recall earlier phase outputs), read `ralph-plans/<name>-working.md` to recover state.
 4. **Working file naming**: Use `ralph-plans/<name>-working.md` where `<name>` matches the eventual plan name. If the plan name is not yet determined, derive a session descriptor from the first 3-4 words of the task description in kebab-case (e.g., `ralph-plans/_working-fix-token-refresh.md`).
 5. **Cleanup**: After plan acceptance and final file output, keep the working file for reference.

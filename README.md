@@ -17,6 +17,10 @@ You → /finesse "vague idea"
        ↓
   Task Classification (feature / bugfix / refactor / testing / performance / research)
        ↓
+  Codebase Exploration (2-3 agents in parallel)
+       ↓
+  Scope Analysis & Decomposition (split large tasks into parallel sub-workflows?)
+       ↓
   Type-Specific Workflow  ←  you answer clarifying questions
        ↓
   Prompt Construction (cold start, ordered phases, verification commands, guardrails)
@@ -27,7 +31,7 @@ You → /finesse "vague idea"
        ↓
   Presentation  ←  you approve or reject
        ↓
-  On Accept → ralph-plans/<name>.md + <name>-promise.txt + <name>-plan.md + copy-paste command
+  On Accept → ralph-plans/ output + copy-paste command(s)
 ```
 
 ## Installation
@@ -91,6 +95,12 @@ For `/finesse Fix the token refresh bug in auth.ts`, Finesse produces something 
 /ralph-loop:ralph-loop $(cat ralph-plans/fix-token-refresh-auth.md) --completion-promise "$(cat ralph-plans/fix-token-refresh-auth-promise.txt)" --max-iterations=8
 ```
 
+Note that in order for this to work, you will need to be running claude with `--dangerously-skip-permissions`. This is because a ralph loop works best in this mode; if desired, you can always get an agent to fetch the file contents to construct the files according to the ralph-loop command spec.
+
+```bash
+/ralph-loop:ralph-loop <PROMPT> --completion-promise "<PROMISE>" --max-iterations=<N>
+```
+
 Finesse saves three files:
 - `ralph-plans/fix-token-refresh-auth.md` — the prompt only: cold start paragraph, ordered fix-then-test phases, verification commands, and guardrails
 - `ralph-plans/fix-token-refresh-auth-promise.txt` — the completion promise text
@@ -108,12 +118,12 @@ Show a summary of what Finesse does, its agents, and how to use it.
 
 Finesse detects your task type and runs a tailored multi-phase workflow. Every workflow ends with prompt construction, parallel validation, and presentation.
 
-- **Feature Development** (7 phases) — Discovery, codebase exploration with 2-3 agents, clarifying questions, architecture design with 3 competing approaches (minimal, clean, pragmatic), construction, validation, presentation. Finesse always presents **3 architecture options** with trade-offs and asks you to choose.
-- **Bug Fix** (6 phases) — Bug understanding, codebase investigation tracing the failing execution path, root cause analysis with hypothesis and evidence, fix strategy with regression tests, construction, validation.
-- **Refactor/Chore** (6 phases) — Scope definition, current state analysis mapping all dependencies and callers, target state design, incremental migration strategy (never leaves codebase broken between phases), construction, validation.
-- **Testing** (5 phases) — Coverage analysis mapping test framework and gaps, test strategy ranked by risk, clarifying questions on mocking/fixtures, construction, validation.
-- **Performance** (5 phases) — Problem definition with target metrics, profiling tracing slow paths and flagging O(n^2) patterns, optimization strategy ranked by impact with measurable before/after, construction, validation.
-- **Research** (7 phases) — Goal definition clarifying the research question and deliverable format, source identification mapping codebase references and prior decisions, research plan with outline and clarifying questions, investigation strategy with per-section evidence requirements and anti-rabbit-hole constraints, construction, validation, presentation. Output is a document, not code changes — source code is strictly read-only.
+- **Feature Development** (8 phases) — Discovery, codebase exploration with 2-3 agents, scope analysis & decomposition, clarifying questions, architecture design with 3 competing approaches (minimal, clean, pragmatic), construction, validation, presentation. Finesse always presents **3 architecture options** with trade-offs and asks you to choose.
+- **Bug Fix** (7 phases) — Bug understanding, codebase investigation tracing the failing execution path, scope analysis & decomposition, root cause analysis with hypothesis and evidence, fix strategy with regression tests, construction, validation.
+- **Refactor/Chore** (7 phases) — Scope definition, current state analysis mapping all dependencies and callers, scope analysis & decomposition, target state design, incremental migration strategy (never leaves codebase broken between phases), construction, validation.
+- **Testing** (6 phases) — Coverage analysis mapping test framework and gaps, scope analysis & decomposition, test strategy ranked by risk, clarifying questions on mocking/fixtures, construction, validation.
+- **Performance** (6 phases) — Problem definition with target metrics, profiling tracing slow paths and flagging O(n^2) patterns, scope analysis & decomposition, optimization strategy ranked by impact with measurable before/after, construction, validation.
+- **Research** (8 phases) — Goal definition clarifying the research question and deliverable format, source identification mapping codebase references and prior decisions, scope analysis & decomposition, research plan with outline and clarifying questions, investigation strategy with per-section evidence requirements and anti-rabbit-hole constraints, construction, validation, presentation. Output is a document, not code changes — source code is strictly read-only.
 
 ## The 10 Mandatory Prompt Attributes
 
@@ -161,12 +171,14 @@ If the scope-safety-reviewer flags `HIGH_RISK`, Finesse will ask you to explicit
 | Agent | Used In | Role |
 |---|---|---|
 | **code-explorer** | All workflows | Traces execution paths, maps architecture, identifies patterns and essential files |
-| **code-architect** | Feature workflow only | Designs implementation approaches — 3 competing designs with trade-offs |
+| **code-architect** | Feature workflow + scope analysis | Designs implementation approaches with trade-offs; proposes task decomposition |
+| **task-decomposer** | Scope analysis (all workflows) | Validates decomposition proposals: sub-workflow scoping, dependencies, wave grouping, coverage |
 
 ## Output
 
 When you accept a plan, Finesse:
 
+**Single-workflow tasks:**
 1. Creates `ralph-plans/` in your workspace root (if it doesn't exist)
 2. Saves three files:
    - `ralph-plans/<name>.md` — the prompt text only (used by the command via `$(cat ...)`)
@@ -177,7 +189,20 @@ When you accept a plan, Finesse:
    /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
    ```
 
-The prompt file contains only the raw prompt so that `$(cat ...)` shell expansion works correctly. Metadata and rationale live in the separate `-plan.md` file.
+**Multi-workflow tasks (decomposed):**
+1. Creates `ralph-plans/<session-name>/` with wave/task subdirectories
+2. Each sub-workflow gets its own `prompt.md`, `promise.txt`, and `plan.md`
+3. An `execution-graph.md` documents the dependency structure and all commands
+4. Outputs commands grouped by wave:
+   ```
+   ## Wave 1 (run in parallel)
+   /ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-1/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-1/<task>/promise.txt)" --max-iterations=<N>
+
+   ## Wave 2 (run after Wave 1 completes)
+   /ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-2/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-2/<task>/promise.txt)" --max-iterations=<N>
+   ```
+
+The prompt file contains only the raw prompt so that `$(cat ...)` shell expansion works correctly. Metadata and rationale live in the separate `-plan.md` (or `plan.md`) file.
 
 ## Plan Rejection & Iteration
 
@@ -213,7 +238,7 @@ Finesse automatically sizes the ralph-loop `--max-iterations` based on task type
 | Research | Medium (3-5 sections) | 8-14 |
 | Research | Broad (6+ sections) | 14-20 |
 
-If a task needs more than 25 iterations, Finesse recommends decomposing it into separate sequential ralph runs.
+If a task needs more than 25 iterations, Finesse automatically proposes decomposing it into multiple independent sub-workflows during the Scope Analysis phase. Each sub-workflow runs as its own ralph-loop with a right-sized iteration count.
 
 ## When to Use Finesse
 

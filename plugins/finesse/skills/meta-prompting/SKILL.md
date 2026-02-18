@@ -47,7 +47,7 @@ Since the agent re-reads the prompt fresh each iteration:
 "You are iterating on [project]. Check the current state of tests and code before doing anything. Determine what has already been completed and what remains."
 
 ### 9. Conservative Iteration Limit
-If the task can't converge in 25 iterations, decompose it into separate sequential ralph runs. Refer to the iteration count table in the **task-workflows** skill for specific guidance by task type and scope.
+If the task can't converge in 25 iterations, it should have been decomposed during the Scope Analysis phase. If you reach plan construction with an estimate over 25, revisit scope analysis. Refer to the iteration count table in the **task-workflows** skill for specific guidance by task type and scope.
 
 ### 10. Zero Ambiguity About "Done"
 No room for the agent to convince itself it's done when it isn't. Include: "Do not output the completion promise unless every criterion is met. Do not lie even if you think you should exit."
@@ -100,3 +100,79 @@ When the plan is accepted, the prompt you construct is written to `ralph-plans/<
 Keep this in mind when constructing the prompt: everything you write using the template above becomes the content of the prompt-only file. Do not mix in non-prompt content.
 
 Write every prompt like a QA spec for a contractor you cannot talk to until the job is done. Every ambiguity is a potential infinite loop.
+
+## Multi-Workflow Output Format
+
+When a task is decomposed into multiple sub-workflows during Scope Analysis, the output uses a nested directory structure instead of the flat format.
+
+### Directory Structure
+
+```
+ralph-plans/<session-name>/
+  execution-graph.md
+  wave-1/
+    <sub-task-name>/
+      prompt.md
+      promise.txt
+      plan.md
+  wave-2/
+    <sub-task-name>/
+      prompt.md
+      promise.txt
+      plan.md
+```
+
+### Naming Conventions
+
+- **Session name**: kebab-case derived from original task description (e.g., `build-todo-api-with-auth`)
+- **Sub-task name**: kebab-case from decomposition proposal names (e.g., `auth-endpoints`, `todo-crud`)
+
+### Execution Graph Format
+
+The `execution-graph.md` file contains:
+
+**Overview section:**
+- Original task description
+- Number of sub-workflows
+- Number of waves
+- Total estimated iterations across all sub-workflows
+
+**Wave structure tables** — for each wave:
+
+| Name | Type | Est. Iterations | Scope | Dependencies |
+|---|---|---|---|---|
+| sub-task-name | feature | 12 | src/auth/, tests/auth/ | none |
+
+**Dependency rationale section:**
+For each dependency, explain whether it is file-based or logical and why.
+
+**Per-wave commands section:**
+Full ralph-loop command for each sub-task:
+```
+## Wave 1 (run in parallel)
+/ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-1/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-1/<task>/promise.txt)" --max-iterations=<N>
+
+## Wave 2 (run after Wave 1 completes)
+/ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-2/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-2/<task>/promise.txt)" --max-iterations=<N>
+```
+
+### Per-Sub-Workflow Prompt Rules
+
+1. Each `prompt.md` must be fully self-contained (valid as a `$(cat ...)` argument)
+2. Must include its own cold start paragraph specific to its scope
+3. Must reference only files in its scope
+4. Must include its own verification commands, guardrails, and completion criteria
+5. Wave 2+ prompts can reference wave 1 outputs as existing state but must NOT assume they will be built
+
+### Mandatory Attributes Per Sub-Workflow
+
+The 10 Mandatory Attributes apply to EACH sub-workflow prompt individually. Every sub-workflow prompt must independently satisfy all 10 attributes.
+
+### Single-Workflow Backward Compatibility
+
+When decomposition does not occur, use the existing flat format:
+- `ralph-plans/<name>.md` — prompt text only
+- `ralph-plans/<name>-promise.txt` — promise text only
+- `ralph-plans/<name>-plan.md` — metadata
+
+Never mix the flat and nested formats.

@@ -14,12 +14,12 @@ Finesse automatically detects your task type and runs a tailored workflow:
 
 | Task Type | Workflow |
 |---|---|
-| **Feature** | Discovery (deep) → Codebase Exploration [UAT] → Clarifying Questions → Architecture Design [UAT] → Plan Construction [UAT] → Validate → Present |
-| **Bug Fix** | Bug Understanding (deep) → Codebase Investigation [UAT] → Root Cause Analysis [UAT] → Fix Strategy [UAT] → Plan → Validate → Present |
-| **Refactor** | Scope Definition (deep) → Current State Analysis [UAT] → Target State Design [UAT] → Migration Strategy [UAT] → Plan → Validate → Present |
-| **Testing** | Coverage Analysis [UAT] → Test Strategy [UAT] → Clarifying Questions → Plan → Validate → Present |
-| **Performance** | Problem Definition (deep) → Profiling & Analysis [UAT] → Optimization Strategy [UAT] → Plan → Validate → Present |
-| **Research** | Goal Definition (deep) → Source Identification [UAT] → Research Plan [UAT] → Investigation Strategy [UAT] → Plan → Validate → Present |
+| **Feature** | Discovery (deep) → Codebase Exploration [UAT] → Scope Analysis [UAT] → Clarifying Questions → Architecture Design [UAT] → Plan Construction [UAT] → Validate → Present |
+| **Bug Fix** | Bug Understanding (deep) → Codebase Investigation [UAT] → Scope Analysis [UAT] → Root Cause Analysis [UAT] → Fix Strategy [UAT] → Plan → Validate → Present |
+| **Refactor** | Scope Definition (deep) → Current State Analysis [UAT] → Scope Analysis [UAT] → Target State Design [UAT] → Migration Strategy [UAT] → Plan → Validate → Present |
+| **Testing** | Coverage Analysis [UAT] → Scope Analysis [UAT] → Test Strategy [UAT] → Clarifying Questions → Plan → Validate → Present |
+| **Performance** | Problem Definition (deep) → Profiling & Analysis [UAT] → Scope Analysis [UAT] → Optimization Strategy [UAT] → Plan → Validate → Present |
+| **Research** | Goal Definition (deep) → Source Identification [UAT] → Scope Analysis [UAT] → Research Plan [UAT] → Investigation Strategy [UAT] → Plan → Validate → Present |
 
 `(deep)` = thorough probing phase with iterative back-and-forth. `[UAT]` = User Acceptance Testing checkpoint (see below).
 
@@ -51,18 +51,19 @@ Cancel the current planning session without saving.
 ## What Happens
 
 1. **Task type detection** — Finesse classifies your task (feature, bugfix, refactor, testing, performance, research)
-2. **Type-specific workflow** — Runs the appropriate multi-phase workflow:
+2. **Scope analysis** — For large tasks, Finesse may propose splitting into multiple sub-workflows that can run in parallel
+3. **Type-specific workflow** — Runs the appropriate multi-phase workflow:
    - Features get codebase exploration + 3 architecture approaches
    - Bug fixes get root cause analysis + fix strategy
    - Refactors get dependency mapping + migration strategy
    - etc.
-3. **Clarifying questions** — Finesse asks you to resolve ambiguities (never guesses)
-4. **UAT checkpoints** — At strategic phases, Finesse presents its work and asks you to accept, provide feedback, make specific changes, or skip remaining checkpoints
-5. **Plan construction** — Builds a structured ralph-loop prompt with cold start, phases, verification commands, guardrails
-6. **Parallel validation** — 5 agents review the plan simultaneously
-7. **Refinement** — Issues fixed automatically or flagged for your input
-8. **Presentation** — Plan shown for your approval
-9. **On acceptance** — Three files saved to `ralph-plans/` (prompt, promise, metadata), you get the ralph-loop command
+4. **Clarifying questions** — Finesse asks you to resolve ambiguities (never guesses)
+5. **UAT checkpoints** — At strategic phases, Finesse presents its work and asks you to accept, provide feedback, make specific changes, or skip remaining checkpoints
+6. **Plan construction** — Builds a structured ralph-loop prompt with cold start, phases, verification commands, guardrails
+7. **Parallel validation** — 5 agents review the plan simultaneously
+8. **Refinement** — Issues fixed automatically or flagged for your input
+9. **Presentation** — Plan shown for your approval
+10. **On acceptance** — Three files saved to `ralph-plans/` (prompt, promise, metadata), you get the ralph-loop command
 
 ## UAT Checkpoints
 
@@ -81,7 +82,8 @@ Discovery phases (marked `(deep)`) always require full confirmation, even if UAT
 | Agent | Role |
 |---|---|
 | code-explorer | Traces execution paths, maps architecture, identifies patterns |
-| code-architect | Designs implementation approaches with trade-offs (feature workflow only) |
+| code-architect | Designs implementation approaches with trade-offs; proposes task decomposition |
+| task-decomposer | Validates decomposition proposals: sub-workflow scoping, dependencies, wave grouping, coverage |
 
 ### Validation Agents
 | Agent | Focus |
@@ -99,10 +101,23 @@ Accepted plans are saved as three files in `ralph-plans/`:
 - `<name>-promise.txt` — completion promise text only
 - `<name>-plan.md` — metadata: task type, approach, rationale, iteration reasoning
 
+For multi-workflow tasks, files are organized under `ralph-plans/<session-name>/` with wave/task subdirectories. See Multi-Workflow Output below.
+
 You get a ready-to-run command:
 ```
 /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
 ```
+
+## Multi-Workflow Output
+
+For large tasks, Finesse may decompose the work into multiple ralph-loop runs organized into execution waves:
+
+- **Wave 1**: Independent sub-tasks that can run in parallel
+- **Wave 2+**: Sub-tasks that depend on earlier waves completing
+
+Output goes to `ralph-plans/<session>/wave-N/<task>/` instead of the flat format. An `execution-graph.md` shows the dependency structure and all commands.
+
+Single-workflow tasks still use the flat `ralph-plans/<name>.md` format.
 
 ## Plan Rejection
 

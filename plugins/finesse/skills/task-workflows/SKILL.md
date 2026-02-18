@@ -33,7 +33,52 @@ If ambiguous, ask the user. Do not guess.
 
 ---
 
-## Feature Development Workflow (7 phases)
+## Scope Analysis & Decomposition Framework
+
+After exploration reveals codebase context but before architecture/strategy design, analyze whether the task should be decomposed into multiple independent sub-workflows that each run as a separate ralph-loop.
+
+### Decomposition Triggers
+
+Propose splitting when ANY of these apply:
+- Estimated iteration count exceeds 25 (the ralph-loop ceiling)
+- Task touches more than 2 independent functional areas with no shared state
+- Task contains sub-tasks with no mutual dependencies
+
+### When NOT to Decompose
+
+Do NOT decompose when:
+- Estimated iterations are within the task-type iteration range
+- All changes are tightly coupled (changing one requires changing all)
+- Task is inherently atomic (single root cause, single optimization target)
+
+### Decomposition Procedure
+
+1. Launch 1 **code-architect** agent in decomposition mode with exploration findings and task requirements. The architect evaluates the task-type-specific decomposition metrics below.
+2. Launch 1 **task-decomposer** agent to validate the decomposition proposal.
+3. Present at UAT checkpoint.
+4. User accepts, modifies, or overrides to single workflow.
+
+### Dependency Analysis Rules
+
+- **File-based**: If sub-workflow A and B both modify the same file, they must be sequenced
+- **Logical**: If A's output is B's input, B depends on A
+- **Parallel candidates**: Sub-workflows with zero file overlap and zero logical dependency
+- **Wave assignment**: Build DAG, topological sort, assign waves (wave N = all nodes whose dependencies are in waves < N)
+
+### Task-Type-Specific Decomposition Metrics
+
+| Task Type | Primary Metrics | Decomposition Signals |
+|---|---|---|
+| Feature | code complexity (files touched), independent concerns, integration points | >8 files, >2 independent concerns, >18 estimated iterations |
+| Bugfix | triage effort (hypothesis count), multi-stage fixes, regression surface | >2 distinct root causes, fix spans >3 independent areas |
+| Refactor | scope breadth (modules), dependency chain depth, migration stages | >3 modules, chain >4 deep, >2 migration stages |
+| Testing | coverage breadth (areas), suite size, framework heterogeneity | >3 test areas, >25 test cases, >2 frameworks |
+| Performance | bottleneck count, scope breadth, measurement independence | >2 independent bottlenecks, optimizations in >3 areas |
+| Research | scoping breadth (topics), section count, investigation independence | >5 sections, >3 independent threads |
+
+---
+
+## Feature Development Workflow (8 phases)
 
 ### Phase 1: Discovery (deep)
 
@@ -66,7 +111,26 @@ After agents return, READ all essential files they identified. Build deep unders
 - **Key findings**: Similar features and how they are implemented, architecture patterns and conventions discovered, key files and their responsibilities.
 - **Impact on next phases**: These findings constrain the architecture design and inform clarifying questions.
 
-### Phase 3: Clarifying Questions
+### Phase 3: Scope Analysis & Decomposition [UAT]
+
+**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
+
+Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates code complexity (files touched), independent concerns, and integration points from the framework section above.
+
+Launch 1 **task-decomposer** agent to validate the decomposition proposal.
+
+**Branching**:
+- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
+- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
+
+**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
+
+**UAT presentation for this phase:**
+- **What was done**: Analyzed task scope against decomposition metrics — code complexity, independent concerns, integration points.
+- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
+- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+
+### Phase 4: Clarifying Questions
 
 **Goal**: Fill every gap before designing.
 
@@ -81,7 +145,7 @@ Based on codebase exploration, identify underspecified aspects:
 
 Present ALL questions in an organized list. **Wait for answers before proceeding.**
 
-### Phase 4: Architecture Design [UAT]
+### Phase 5: Architecture Design [UAT]
 
 **Goal**: Design multiple implementation approaches.
 
@@ -97,9 +161,11 @@ Launch 2-3 **code-architect** agents in parallel, each with a different focus:
 
 Note: When the user selects "Accept" at this checkpoint, ask which approach they are accepting (or if they accept your recommendation). When they select "Provide feedback" or "Make specific changes", the feedback may target a specific approach or request an entirely different direction.
 
-### Phase 5: Plan Construction [UAT]
+### Phase 6: Plan Construction [UAT]
 
 **Goal**: Build the ralph-loop prompt from the chosen architecture.
+
+If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
 
 Using the chosen approach, construct a complete ralph-loop prompt following the template in the meta-prompting skill. The prompt must include:
 - Cold start paragraph referencing the specific files and patterns discovered
@@ -119,17 +185,17 @@ Determine ralph-loop `--max-iterations` with reasoning:
 - **Key findings**: The complete prompt including cold start, ordered phases, verification commands, scope constraints, guardrails, and completion criteria. The recommended `--max-iterations` with reasoning.
 - **Impact on next phases**: This is the near-final prompt. After acceptance, it goes to the validation agents for automated review.
 
-### Phase 6: Validation
+### Phase 7: Validation
 
 Launch all 5 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
 
-### Phase 7: Presentation
+### Phase 8: Presentation
 
 Present the validated plan. On acceptance, save to `ralph-plans/` and output the command.
 
 ---
 
-## Bug Fix Workflow (6 phases)
+## Bug Fix Workflow (7 phases)
 
 ### Phase 1: Bug Understanding (deep)
 
@@ -164,7 +230,26 @@ After agents return, read all identified files. Map the exact code path where th
 - **Key findings**: The exact code path where the bug occurs, relevant files and functions, recent changes to the affected area, related tests.
 - **Impact on next phases**: This evidence drives root cause analysis.
 
-### Phase 3: Root Cause Analysis [UAT]
+### Phase 3: Scope Analysis & Decomposition [UAT]
+
+**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
+
+Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates triage effort (hypothesis count), multi-stage fixes, and regression surface from the framework section above.
+
+Launch 1 **task-decomposer** agent to validate the decomposition proposal.
+
+**Branching**:
+- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
+- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
+
+**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
+
+**UAT presentation for this phase:**
+- **What was done**: Analyzed task scope against decomposition metrics — triage effort, multi-stage fixes, regression surface.
+- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
+- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+
+### Phase 4: Root Cause Analysis [UAT]
 
 **Goal**: Identify the actual root cause, not just symptoms.
 
@@ -180,7 +265,7 @@ If multiple possible causes, present them ranked by likelihood.
 - **Key findings**: Root cause hypothesis with supporting evidence, type of error (logic, data, race condition, etc.), related bugs that share the same root cause (if any).
 - **Impact on next phases**: The confirmed root cause determines the fix strategy.
 
-### Phase 4: Fix Strategy [UAT]
+### Phase 5: Fix Strategy [UAT]
 
 **Goal**: Design the fix with regression prevention.
 
@@ -194,7 +279,9 @@ If multiple possible causes, present them ranked by likelihood.
 - **Key findings**: The minimal fix for the root cause, tests to add for regression prevention, existing tests to update, related code to check.
 - **Impact on next phases**: The accepted fix strategy becomes the plan's phase structure and scope.
 
-### Phase 5: Plan Construction
+### Phase 6: Plan Construction
+
+If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
 
 Build the ralph-loop prompt focused on:
 - Cold start: check if the bug is still present before fixing
@@ -209,13 +296,13 @@ Ralph-loop iterations:
 - Medium bug (multi-file, clear cause): 8-12
 - Complex bug (unclear cause, multiple files): 12-18
 
-### Phase 6: Validation + Presentation
+### Phase 7: Validation + Presentation
 
-Validate and present. Same as feature workflow phases 6-7.
+Validate and present. Same as feature workflow phases 7-8.
 
 ---
 
-## Refactor/Chore Workflow (6 phases)
+## Refactor/Chore Workflow (7 phases)
 
 ### Phase 1: Scope Definition (deep)
 
@@ -247,7 +334,26 @@ After agents return, read essential files. Build a dependency map.
 - **Key findings**: All files involved, dependency map, callers, existing tests, things that would break if the code changed.
 - **Impact on next phases**: This dependency map constrains the target state design and migration strategy.
 
-### Phase 3: Target State Design [UAT]
+### Phase 3: Scope Analysis & Decomposition [UAT]
+
+**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
+
+Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates scope breadth (modules), dependency chain depth, and migration stages from the framework section above.
+
+Launch 1 **task-decomposer** agent to validate the decomposition proposal.
+
+**Branching**:
+- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
+- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
+
+**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
+
+**UAT presentation for this phase:**
+- **What was done**: Analyzed task scope against decomposition metrics — scope breadth, dependency chain depth, migration stages.
+- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
+- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+
+### Phase 4: Target State Design [UAT]
 
 **Goal**: Define the end state concretely.
 
@@ -261,7 +367,7 @@ After agents return, read essential files. Build a dependency map.
 - **Key findings**: Target architecture, specific file changes, dependency updates, breaking changes, migration path, pattern examples.
 - **Impact on next phases**: The confirmed target state drives the migration strategy.
 
-### Phase 4: Migration Strategy [UAT]
+### Phase 5: Migration Strategy [UAT]
 
 **Goal**: Plan the safest path from current to target state.
 
@@ -276,7 +382,9 @@ Design an incremental migration that:
 - **Key findings**: Migration phases in order, verification at each step, revert strategy, caller update plan.
 - **Impact on next phases**: The accepted migration strategy becomes the plan's phase structure.
 
-### Phase 5: Plan Construction
+### Phase 6: Plan Construction
+
+If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
 
 Build the ralph-loop prompt focused on:
 - Cold start: check what's already been migrated
@@ -290,13 +398,13 @@ Ralph-loop iterations:
 - Medium refactor (4-8 files): 10-15
 - Large refactor (9+ files): 15-22
 
-### Phase 6: Validation + Presentation
+### Phase 7: Validation + Presentation
 
 Validate and present.
 
 ---
 
-## Testing Workflow (5 phases)
+## Testing Workflow (6 phases)
 
 ### Phase 1: Coverage Analysis [UAT]
 
@@ -319,7 +427,26 @@ After gathering exploration results AND user answers, synthesize a coverage pict
 - **Key findings**: Testing framework and conventions, coverage map (what is tested vs not), user's priority areas and coverage goals.
 - **Impact on next phases**: This drives the test strategy prioritization.
 
-### Phase 2: Test Strategy [UAT]
+### Phase 2: Scope Analysis & Decomposition [UAT]
+
+**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
+
+Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates coverage breadth (areas), suite size, and framework heterogeneity from the framework section above.
+
+Launch 1 **task-decomposer** agent to validate the decomposition proposal.
+
+**Branching**:
+- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
+- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
+
+**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
+
+**UAT presentation for this phase:**
+- **What was done**: Analyzed task scope against decomposition metrics — coverage breadth, suite size, framework heterogeneity.
+- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
+- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+
+### Phase 3: Test Strategy [UAT]
 
 **Goal**: Prioritize what to test and how.
 
@@ -334,7 +461,7 @@ Based on exploration:
 - **Key findings**: Untested functions/paths ranked by risk, recommended test types per area, shared utilities or fixtures to create, dependencies needing mocking/stubbing.
 - **Impact on next phases**: The accepted strategy determines which tests to write and in what order.
 
-### Phase 3: Clarifying Questions
+### Phase 4: Clarifying Questions
 
 **Goal**: Resolve testing-specific ambiguities.
 
@@ -343,7 +470,9 @@ Based on exploration:
 - What's the acceptable test runtime?
 - Any flaky test patterns to avoid?
 
-### Phase 4: Plan Construction
+### Phase 5: Plan Construction
+
+If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
 
 Build the ralph-loop prompt focused on:
 - Cold start: run existing test suite, check current coverage
@@ -357,13 +486,13 @@ Ralph-loop iterations:
 - Medium test suite (10-25 tests): 10-15
 - Large test suite (25+ tests): 15-20
 
-### Phase 5: Validation + Presentation
+### Phase 6: Validation + Presentation
 
 Validate and present.
 
 ---
 
-## Performance Optimization Workflow (5 phases)
+## Performance Optimization Workflow (6 phases)
 
 ### Phase 1: Problem Definition (deep)
 
@@ -391,7 +520,26 @@ Launch 1-2 **code-explorer** agents:
 - **Key findings**: Identified bottlenecks with evidence (database queries, external calls, loops, data transformations), existing optimization patterns in the codebase, what the slow area is missing.
 - **Impact on next phases**: These findings drive the optimization strategy — what to optimize first and how.
 
-### Phase 3: Optimization Strategy [UAT]
+### Phase 3: Scope Analysis & Decomposition [UAT]
+
+**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
+
+Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates bottleneck count, scope breadth, and measurement independence from the framework section above.
+
+Launch 1 **task-decomposer** agent to validate the decomposition proposal.
+
+**Branching**:
+- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
+- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
+
+**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
+
+**UAT presentation for this phase:**
+- **What was done**: Analyzed task scope against decomposition metrics — bottleneck count, scope breadth, measurement independence.
+- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
+- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+
+### Phase 4: Optimization Strategy [UAT]
 
 **Goal**: Design the optimization with measurable targets.
 
@@ -404,7 +552,9 @@ Launch 1-2 **code-explorer** agents:
 - **Key findings**: Optimization approaches with expected impact, measurable before/after verification for each, risks and trade-offs.
 - **Impact on next phases**: The accepted optimization strategy determines the plan's phase structure and verification benchmarks.
 
-### Phase 4: Plan Construction
+### Phase 5: Plan Construction
+
+If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
 
 Build the ralph-loop prompt focused on:
 - Cold start: run baseline benchmark, record numbers
@@ -418,13 +568,13 @@ Ralph-loop iterations:
 - Multiple bottlenecks: 10-18
 - System-wide optimization: 15-22
 
-### Phase 5: Validation + Presentation
+### Phase 6: Validation + Presentation
 
 Validate and present.
 
 ---
 
-## Research Workflow (7 phases)
+## Research Workflow (8 phases)
 
 ### Phase 1: Research Goal Definition (deep)
 
@@ -458,7 +608,26 @@ After agents return, READ all identified files. Build a source inventory before 
 - **Key findings**: Sources found and their relevance, prior decisions or context discovered, gaps where external research may be needed.
 - **Impact on next phases**: This source inventory shapes the research plan outline and investigation strategy.
 
-### Phase 3: Research Plan & Clarifying Questions [UAT]
+### Phase 3: Scope Analysis & Decomposition [UAT]
+
+**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
+
+Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates scoping breadth (topics), section count, and investigation independence from the framework section above.
+
+Launch 1 **task-decomposer** agent to validate the decomposition proposal.
+
+**Branching**:
+- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
+- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
+
+**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
+
+**UAT presentation for this phase:**
+- **What was done**: Analyzed task scope against decomposition metrics — scoping breadth, section count, investigation independence.
+- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
+- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+
+### Phase 4: Research Plan & Clarifying Questions [UAT]
 
 **Goal**: Propose a research outline and resolve ambiguities before investigation begins.
 
@@ -480,7 +649,7 @@ Present ALL clarifying questions:
 - **Key findings**: The finalized document outline with sections, expected depth per section, what can be answered from the codebase vs external knowledge.
 - **Impact on next phases**: This outline structures the investigation strategy and becomes the deliverable skeleton.
 
-### Phase 4: Investigation Strategy [UAT]
+### Phase 5: Investigation Strategy [UAT]
 
 **Goal**: Define what to investigate for each section and how to verify findings.
 
@@ -500,9 +669,11 @@ Key constraints:
 - **Key findings**: Per-section investigation plan (questions to answer, evidence needed, commands to run), rabbit holes to avoid, constraints.
 - **Impact on next phases**: The accepted investigation strategy drives the ralph-loop prompt's phase structure.
 
-### Phase 5: Plan Construction
+### Phase 6: Plan Construction
 
 **Goal**: Build the ralph-loop prompt with research-specific adaptations.
+
+If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
 
 Build the ralph-loop prompt focused on:
 - Cold start: check if the deliverable file exists, read it, determine what sections are complete vs remaining, resume from where the document left off
@@ -533,10 +704,28 @@ Ralph-loop iterations:
 - Medium research (3-5 sections, comparison): 8-14
 - Broad research (6+ sections, comprehensive): 14-20
 
-### Phase 6: Validation
+### Phase 7: Validation
 
 Launch all 5 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
 
-### Phase 7: Presentation
+### Phase 8: Presentation
 
 Present the validated plan. On acceptance, save to `ralph-plans/` and output the command.
+
+---
+
+## Multi-Workflow Execution (Decomposed Tasks)
+
+When the Scope Analysis phase results in an accepted decomposition, the remaining workflow phases operate differently:
+
+**Shared phases**: Discovery/Understanding, Exploration/Investigation, and Scope Analysis are shared across all sub-workflows. They run once and their outputs are included in every sub-workflow's prompt context.
+
+**Shared architecture**: If the workflow includes an Architecture Design phase (Feature), architecture decisions are shared. The architect designs the overall system; decomposition determines which pieces each sub-workflow builds.
+
+**Per-sub-workflow phases**: Only Plan Construction and Validation run independently for each sub-workflow. Each gets its own prompt, promise, and plan files.
+
+**Clarifying Questions**: Run once with awareness of all sub-workflows. Questions may be sub-workflow-specific but are asked in a single batch.
+
+**Validation**: Each sub-workflow's prompt is validated independently by all 5 standard validation agents.
+
+**Presentation**: All sub-workflows are presented together with the execution graph. The user accepts or rejects the entire decomposition as a unit.

@@ -20,6 +20,20 @@ Use the Task tool to launch ALL FIVE agents simultaneously in a single message. 
 
 Each agent returns a verdict: `PASS`, `FAIL`, or `NEEDS_REWORK`.
 
+### Multi-Workflow Validation
+
+When the Scope Analysis phase resulted in a decomposition with multiple sub-workflows:
+
+**Per-sub-workflow validation**: Launch all 5 validators on each sub-workflow's prompt independently. Process sub-workflows sequentially (to manage context), not all at once.
+
+**Cross-sub-workflow checks**: After individual validation passes, verify:
+1. No file scope overlaps between parallel (same-wave) sub-workflow prompts
+2. Wave 2+ sub-workflows correctly assume wave 1 outputs as existing state (not as things to build)
+
+**Verdict aggregation**: All sub-workflow prompts must pass all 5 validators. A FAIL on any single sub-workflow blocks the entire plan.
+
+**Refinement budget**: Applies per sub-workflow independently. Each sub-workflow can use up to `--max-refinements` cycles.
+
 ### Step 2: Evaluate the Gate
 
 - **All PASS**: The plan is ready to present to the user.
@@ -61,6 +75,8 @@ When the clarity-checker (or any agent) identifies ambiguities that require user
 ### Post-Acceptance
 
 Once the user accepts:
+
+**Single-workflow acceptance:**
 1. Create `ralph-plans/` directory in workspace root
 2. Write THREE files:
    - `ralph-plans/<name>.md` — prompt text ONLY (no metadata, no headers — the raw prompt content)
@@ -71,3 +87,13 @@ Once the user accepts:
    /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
    ```
    The command uses `$(cat ...)` shell expansion to read the prompt and promise from their files at runtime. The `<name>.md` file MUST contain only the prompt text for this to work correctly.
+
+**Multi-workflow acceptance:**
+1. Create `ralph-plans/<session-name>/` directory in workspace root
+2. For each wave N, create `ralph-plans/<session-name>/wave-<N>/`
+3. For each sub-workflow, create its directory and write three files:
+   - `ralph-plans/<session-name>/wave-<N>/<task-name>/prompt.md` — sub-workflow prompt text ONLY
+   - `ralph-plans/<session-name>/wave-<N>/<task-name>/promise.txt` — sub-workflow completion promise ONLY
+   - `ralph-plans/<session-name>/wave-<N>/<task-name>/plan.md` — sub-workflow metadata
+4. Write `ralph-plans/<session-name>/execution-graph.md` with wave structure, dependency rationale, and per-task commands
+5. Output ralph-loop commands organized by wave
