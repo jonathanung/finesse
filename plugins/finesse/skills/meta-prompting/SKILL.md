@@ -38,6 +38,8 @@ Explicit "Do NOT" rules based on known pitfalls:
 - "Read the actual error message before attempting a fix."
 - "Do NOT add unnecessary abstractions or extra files."
 
+Note: Git commit and push rules are configured per-plan during Plan Construction — see Git Configuration Rules section below.
+
 ### 7. Scoped Context
 Tell the agent which files matter and which to leave alone:
 "The relevant files are `src/api/`, `src/models/`, and `tests/api/`. Do not modify anything in `src/ui/`."
@@ -73,7 +75,7 @@ Phase 2: [specific deliverable]
 - Run [test command] after every change. Fix failures before moving on.
 - Do NOT rewrite files from scratch. Make targeted edits.
 - Do NOT delete existing tests to make a suite pass.
-- Do NOT push to remote repositories.
+- [Git rules — include checkpoint and push rules based on user's git configuration. See Git Configuration Rules section.]
 - Do NOT add unnecessary abstractions or extra files.
 - Only modify files in [scoped directories].
 - Read actual error messages before attempting fixes.
@@ -100,6 +102,61 @@ When the plan is accepted, the prompt you construct is written to `ralph-plans/<
 Keep this in mind when constructing the prompt: everything you write using the template above becomes the content of the prompt-only file. Do not mix in non-prompt content.
 
 Write every prompt like a QA spec for a contractor you cannot talk to until the job is done. Every ambiguity is a potential infinite loop.
+
+## Git Configuration Rules
+
+During Plan Construction, the user is always prompted about git usage. Based on their answers, include the following rules in the prompt's `## Rules` section.
+
+### No checkpointing selected
+
+```
+- Do NOT make git commits.
+- Do NOT push to remote repositories.
+```
+
+### Checkpointing enabled, no push
+
+The checkpoint rule varies by the user's chosen granularity:
+
+**After each phase:**
+```
+- After completing each phase and verifying it passes, create a git commit with a descriptive message referencing the completed phase.
+- Do NOT push to remote repositories.
+```
+
+**After each change:**
+```
+- After each logical unit of work, create a git commit with a descriptive message describing the change.
+- Do NOT push to remote repositories.
+```
+
+**Custom:**
+Use the user's verbatim description as the checkpoint rule, plus:
+```
+- Do NOT push to remote repositories.
+```
+
+### Checkpointing enabled + push
+
+The checkpoint rule (same granularity variants as above) plus a push rule instead of the prohibition:
+
+**After each phase:**
+```
+- After completing each phase and verifying it passes, create a git commit with a descriptive message referencing the completed phase.
+- Push commits to the remote repository after committing.
+```
+
+**After each change:**
+```
+- After each logical unit of work, create a git commit with a descriptive message describing the change.
+- Push commits to the remote repository after committing.
+```
+
+**Custom:**
+Use the user's verbatim description as the checkpoint rule, plus:
+```
+- Push commits to the remote repository after committing.
+```
 
 ## Multi-Workflow Output Format
 

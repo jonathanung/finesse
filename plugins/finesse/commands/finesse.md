@@ -127,6 +127,8 @@ If decomposition was accepted:
 
 ### Plan Construction
 
+**Git Configuration**: Before assembling the prompt, prompt the user about git usage (see Git Configuration Prompt below). The answers determine which git rules are included in the prompt's Rules section.
+
 Build a complete ralph-loop prompt using the meta-prompting skill template. The prompt MUST include:
 
 1. **Cold start paragraph** — task-specific orientation (check tests for bugs, check coverage for testing, etc.)
@@ -139,6 +141,27 @@ Build a complete ralph-loop prompt using the meta-prompting skill template. The 
 
 Determine ralph-loop `--max-iterations` with reasoning. Refer to the iteration count table in the **task-workflows** skill for task-specific guidance.
 
+### Git Configuration Prompt
+
+During Plan Construction, ALWAYS prompt the user about git usage before assembling the prompt's Rules section. This prompt is mandatory and is NOT affected by UAT fast-forward — it must always appear.
+
+Use `AskUserQuestion` for all git configuration questions:
+
+**Question 1**: "Should the ralph-loop agent use git to checkpoint progress?"
+- Options: "Yes" / "No"
+
+**If the user answers Yes**, ask Questions 2 and 3 together in a single `AskUserQuestion` call:
+
+**Question 2**: "What commit granularity should the agent use?"
+- Options: "After each phase" / "After each change" / "Custom" (user provides free text via Other)
+
+**Question 3**: "Should the agent push commits to the remote?"
+- Options: "Yes" / "No"
+
+Based on the user's answers, include the appropriate git rules in the prompt's `## Rules` section per the **Git Configuration Rules** section in the meta-prompting skill.
+
+In Multi-Workflow mode, git configuration is asked once and applied uniformly to all sub-workflow prompts. Do NOT re-prompt for each sub-workflow.
+
 ### Multi-Workflow Plan Construction
 
 When the Scope Analysis phase resulted in an accepted decomposition:
@@ -147,6 +170,7 @@ When the Scope Analysis phase resulted in an accepted decomposition:
 2. **Per-sub-workflow loop**: For each sub-workflow in wave order, construct a ralph-loop prompt using the meta-prompting skill template, scoped to that sub-workflow's concern and files. The cold start paragraph must reference the shared architecture context. Include cross-sub-workflow guardrails: "Do NOT modify files outside this sub-workflow's scope: [list]."
 3. Each sub-workflow prompt gets its own iteration count recommendation.
 4. **Execution graph**: Build an `execution-graph.md` documenting wave order, dependencies, and run instructions.
+5. **Git configuration**: The git rules from the Git Configuration Prompt apply uniformly to ALL sub-workflow prompts. Do NOT re-prompt for each sub-workflow.
 
 ### Validation
 
