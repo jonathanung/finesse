@@ -181,6 +181,8 @@ Using the chosen approach, construct a complete ralph-loop prompt following the 
 
 **Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
 
+**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
+
 Determine ralph-loop `--max-iterations` with reasoning:
 - Simple feature (1-2 files): 8-12
 - Medium feature (3-5 files): 12-18
@@ -303,6 +305,8 @@ Build the ralph-loop prompt focused on:
 
 **Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
 
+**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
+
 Ralph-loop iterations:
 - Simple bug (one file, clear cause): 5-8
 - Medium bug (multi-file, clear cause): 8-12
@@ -411,6 +415,8 @@ Build the ralph-loop prompt focused on:
 
 **Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
 
+**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
+
 Ralph-loop iterations:
 - Small refactor (1-3 files): 5-8
 - Medium refactor (4-8 files): 10-15
@@ -505,6 +511,8 @@ Build the ralph-loop prompt focused on:
 
 **Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
 
+**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
+
 Ralph-loop iterations:
 - Small test suite (5-10 tests): 5-8
 - Medium test suite (10-25 tests): 10-15
@@ -592,6 +600,8 @@ Build the ralph-loop prompt focused on:
 - Completion: benchmark meets target threshold
 
 **Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
+
+**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
 
 Ralph-loop iterations:
 - Single bottleneck: 5-10
@@ -735,6 +745,8 @@ Build the ralph-loop prompt focused on:
 
 **Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
 
+**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
+
 Ralph-loop iterations:
 - Narrow research (1-2 sections, single area): 5-8
 - Medium research (3-5 sections, comparison): 8-14
@@ -761,6 +773,8 @@ When the Scope Analysis phase results in an accepted decomposition, the remainin
 **Per-sub-workflow phases**: Only Plan Construction and Validation run independently for each sub-workflow. Each gets its own prompt, promise, and plan files.
 
 **Clarifying Questions**: Run once with awareness of all sub-workflows. Questions may be sub-workflow-specific but are asked in a single batch.
+
+**Context budget**: Each sub-workflow gets its own context budget estimate (since each runs in its own context window). If any sub-workflow exceeds critical pressure (>80%), the re-route fires for that specific sub-workflow. An aggregate summary of all sub-workflow budgets is included in `execution-graph.md`.
 
 **Validation**: Each sub-workflow's prompt is validated independently by all 5 standard validation agents.
 

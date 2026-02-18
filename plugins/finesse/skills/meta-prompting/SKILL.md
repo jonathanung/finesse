@@ -259,9 +259,14 @@ Finesse persists codebase exploration findings across sessions using a JSON cach
 ```json
 {
   "cache_enabled": true,
-  "staleness_threshold": 50
+  "staleness_threshold": 50,
+  "context_window": 200000
 }
 ```
+
+- `cache_enabled` (boolean, default true) — enable/disable exploration cache
+- `staleness_threshold` (integer, default 50) — number of changed files before cache is considered stale
+- `context_window` (integer, default 200000) — context window size in tokens for budget estimation
 
 ### Index Key Format
 
@@ -279,6 +284,74 @@ The **baseline** is stale if the diff since `baseline.commit_hash` exceeds the `
 - New entries with new keys are **additive** (appended to the cache).
 - The baseline is **overwritten wholesale** on full exploration (cache miss).
 - Stale entries are **removed** on cache load, before any merge occurs.
+
+## Context Budget Estimation
+
+During Plan Construction, Finesse estimates context window pressure for the planned ralph-loop execution. This section defines the reference tables and heuristics used by the Context Budget Estimation Procedure in `finesse.md`.
+
+### Token Estimation Heuristics
+
+- **1 line of code = ~10 tokens** (deliberate overestimate for safety margin, accounts for typical line length, indentation, and tokenizer behavior)
+- **Prompt base**: 2,000–5,000 tokens (the ralph-loop prompt itself)
+- **Per-phase overhead**: 5,000 tokens (tool calls, phase transitions, intermediate reasoning)
+- **Agent reasoning overhead per iteration**: 20,000 tokens (cold start re-read, state assessment, planning)
+
+### File Size Categories
+
+| Category | Lines | Estimated Tokens |
+|---|---|---|
+| Small | < 2,000 | < 20,000 |
+| Medium | 2,000 – 10,000 | 20,000 – 100,000 |
+| Large | > 10,000 | > 100,000 |
+
+### Phase Weight Multipliers
+
+| Phase Type | Weight | Rationale |
+|---|---|---|
+| Implementation (file modification) | 2.0 | File read + file write + reasoning about changes |
+| Verification (command execution) | 0.5 | Command output parsing only |
+| Exploration / cold-start | 1.5 | File reads + state assessment reasoning |
+
+### Unread File Defaults
+
+When a file appears in the Implementation Map but was not read during exploration, use the architect's complexity estimate as a proxy:
+
+| Architect Complexity | Default Lines | Default Tokens |
+|---|---|---|
+| small change | 200 | 2,000 |
+| medium change | 1,000 | 10,000 |
+| large change | 5,000 | 50,000 |
+
+### Context Pressure Thresholds
+
+| Pressure Rating | Peak Usage Range | Action |
+|---|---|---|
+| low | < 30% | Proceed normally |
+| moderate | 30% – 60% | Proceed, note in plan presentation |
+| high | 60% – 80% | Warning: recommend considering decomposition |
+| critical | > 80% | Re-route: pause plan construction and recommend decomposition |
+
+### API Cost Estimation Table
+
+| Estimated Iterations | Context Pressure | Cost Range |
+|---|---|---|
+| 5–8 | low | Under $5 |
+| 5–8 | moderate–high | $5–20 |
+| 8–15 | low–moderate | $5–20 |
+| 8–15 | high | $20–50 |
+| 15–22 | low–moderate | $20–50 |
+| 15–22 | high–critical | $50–100 |
+| 22–25 | any | $50–100+ |
+
+### Cost Disclaimer Template
+
+Always include in the plan presentation:
+
+> Cost estimates are order-of-magnitude approximations based on a [context_window / 1000]k token context window. Actual costs vary with model choice (Sonnet vs Opus), caching behavior, codebase growth during execution, and agent reasoning patterns. Treat these as directional, not precise.
+
+### Context Window Parameter
+
+Default: 200,000 tokens. This value is used in all pressure calculations. If the user specifies a different context window via `.finesse/config.json` `context_window` field, use that value instead.
 
 ## Multi-Workflow Output Format
 

@@ -182,6 +182,8 @@ Previous inline confirmation gates within `[UAT]`-marked phases (e.g., "Present 
 
 **Subagent Configuration**: After the git configuration prompt, analyze phases for subagent eligibility and ask the user whether to include subagent instructions (see Subagent Configuration Prompt below). The answer determines whether subagent sections are included in the prompt.
 
+**Context Budget Estimation**: After subagent configuration, estimate context window pressure for the planned ralph-loop execution using the Implementation Map from the architecture phase and file line counts from exploration. See the Context Budget Estimation Procedure below. If pressure is critical (>80%), handle the re-route before continuing.
+
 Build a complete ralph-loop prompt using the meta-prompting skill template. The prompt MUST include:
 
 1. **Cold start paragraph** — task-specific orientation (check tests for bugs, check coverage for testing, etc.)
@@ -235,6 +237,79 @@ After the Git Configuration prompt and before assembling the final prompt, analy
 
 **Multi-Workflow note**: In Multi-Workflow mode, subagent analysis is performed per sub-workflow prompt. The question is asked once and the answer applies to all sub-workflow prompts.
 
+### Context Budget Estimation Procedure
+
+After subagent configuration and before assembling the ralph-loop prompt, estimate context window pressure. This estimation is mandatory and uses data already gathered during earlier phases. It is NOT affected by UAT fast-forward — the re-route at critical pressure always fires.
+
+**Step 1: Read context window size.** Check `.finesse/config.json` for a `context_window` field. If absent, use the default: 200,000 tokens.
+
+**Step 2: Gather the Implementation Map.** Collect the file list from the architecture phase's Implementation Map (or equivalent: the Build Sequence for features, the fix strategy for bugfixes, the migration strategy for refactors, etc.). Each entry has a file path and the architect's complexity estimate (small/medium/large).
+
+**Step 3: Estimate line counts per file.** For each file in the Implementation Map:
+- If the file was read during exploration (via the Read tool), use the last line number visible in the Read output as the line count.
+- If the file was NOT read, use the Unread File Defaults from the meta-prompting skill based on the architect's complexity estimate (small = 200 lines, medium = 1,000 lines, large = 5,000 lines).
+
+**Step 4: Categorize files.** Using the File Size Categories from the meta-prompting skill:
+- Small: < 2,000 lines
+- Medium: 2,000 – 10,000 lines
+- Large: > 10,000 lines
+
+Count files in each category.
+
+**Step 5: Estimate per-phase context consumption.** For each phase in the designed architecture:
+1. Identify files that phase touches (from the Build Sequence / Implementation Map).
+2. Sum the estimated tokens for those files (lines × 10).
+3. Apply the Phase Weight Multiplier from the meta-prompting skill:
+   - Implementation phases (file modification): × 2.0
+   - Verification phases (command execution): × 0.5
+   - Exploration / cold-start: × 1.5
+4. Add per-phase overhead: 5,000 tokens.
+
+**Step 6: Calculate peak single-iteration context.** The relevant metric is peak context within a single iteration (since ralph-loop re-reads the prompt each iteration):
+
+```
+peak_iteration_context = prompt_base_tokens + heaviest_phase_weighted_tokens + agent_reasoning_overhead
+```
+
+Where:
+- `prompt_base_tokens`: estimated prompt size (typically 2,000–5,000 tokens)
+- `heaviest_phase_weighted_tokens`: the phase with the highest weighted token load (from Step 5)
+- `agent_reasoning_overhead`: 20,000 tokens
+
+**Step 7: Calculate pressure rating.**
+
+```
+pressure_pct = (peak_iteration_context / context_window) × 100
+```
+
+Map to rating using the Context Pressure Thresholds from the meta-prompting skill:
+- low: < 30%
+- moderate: 30% – 60%
+- high: 60% – 80%
+- critical: > 80%
+
+**Step 8: Estimate API cost range.** Using the recommended `--max-iterations` (determined from the task-type iteration count tables) and the pressure rating, look up the cost range in the API Cost Estimation Table from the meta-prompting skill.
+
+**Step 9: Handle pressure thresholds.**
+- **low or moderate**: Proceed to prompt assembly. Include context budget in presentation.
+- **high** (60%–80%): Proceed to prompt assembly but include a prominent warning in the plan presentation recommending the user consider decomposition.
+- **critical** (>80%): Trigger the re-route procedure (see below).
+
+**Re-route at critical pressure**: If `pressure_pct` exceeds 80%, STOP plan construction. Present the context budget analysis to the user, showing which files and phases drive the high pressure. Use `AskUserQuestion`:
+
+- Question: "Context pressure is critical ([X]%). The planned ralph-loop execution will likely exceed the context window, causing degraded performance or failure."
+- Options:
+  1. **Return to Scope Analysis for decomposition** — Rewind to the Scope Analysis phase (F3/B3/R3/T2/P3/RE3) with an explicit constraint that each sub-workflow must stay below 60% context pressure. Update the working file's `current_phase` back to the scope analysis phase code.
+  2. **Continue anyway (I accept the risk)** — Proceed with plan construction. Include a prominent warning in the plan presentation and plan metadata: "WARNING: Context pressure is critical ([X]%). This plan may exceed the context window during execution."
+  3. **Reduce scope manually** — The user provides feedback to trim files or phases. Re-run the context budget estimation with the reduced scope.
+
+**Multi-Workflow context budget**: In decomposed mode, estimate context budget independently for each sub-workflow (since each runs in its own context window). If any single sub-workflow exceeds 80%, fire the re-route for that specific sub-workflow — not the aggregate. Include a per-sub-workflow breakdown and an aggregate summary in `execution-graph.md`:
+
+| Sub-Workflow | Files | Peak Tokens | Pressure | Iterations | Est. Cost |
+|---|---|---|---|---|---|
+| [name] | [count] | [tokens] ([pct]%) | [rating] | [N] | [range] |
+| **Aggregate** | **[total]** | **—** | **—** | **[total]** | **[sum range]** |
+
 ### Multi-Workflow Plan Construction
 
 When the Scope Analysis phase resulted in an accepted decomposition:
@@ -276,9 +351,10 @@ Present the plan via ExitPlanMode. The plan file must contain:
 3. **Chosen approach** — with rationale
 4. **The full ralph-loop prompt**
 5. **Recommended `--max-iterations`** with reasoning
-6. **`--completion-promise`** text
-7. **Unresolved warnings** (if any from validation)
-8. **The exact ralph-loop command to run** (using file references — see User Decision below)
+6. **Context budget estimate** — pressure rating, file breakdown (count per category), estimated cost range, and disclaimer
+7. **`--completion-promise`** text
+8. **Unresolved warnings** (if any from validation)
+9. **The exact ralph-loop command to run** (using file references — see User Decision below)
 
 Note: The presentation is for the user to review. The actual files written on acceptance are described under User Decision.
 
@@ -289,7 +365,7 @@ Note: The presentation is for the user to review. The actual files written on ac
 2. Write THREE files:
    - `ralph-plans/<name>.md` — the prompt text ONLY (no metadata, no YAML frontmatter, no markdown headers — just the raw prompt that the ralph-loop agent will read)
    - `ralph-plans/<name>-promise.txt` — the completion promise text ONLY (no quotes, no extra content)
-   - `ralph-plans/<name>-plan.md` — metadata for human reference: task type, summary, codebase context, chosen approach with rationale, recommended --max-iterations with reasoning, unresolved warnings (if any)
+   - `ralph-plans/<name>-plan.md` — metadata for human reference: task type, summary, codebase context, chosen approach with rationale, recommended --max-iterations with reasoning, context budget estimate (pressure rating, file breakdown, estimated cost range, disclaimer), unresolved warnings (if any)
 3. Output the exact command:
    ```
    /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
@@ -354,6 +430,7 @@ Note: The presentation is for the user to review. The actual files written on ac
 - Each sub-workflow prompt must be fully self-contained — include all relevant shared context inline. Sub-workflow prompts are read via `$(cat ...)` and have no access to sibling files.
 - The `execution-graph.md` file is for human reference. The user decides whether to run sub-workflows in parallel.
 - When the user overrides decomposition, warn about consequences but respect the override.
+- Context budget estimation is mandatory during Plan Construction. If pressure is critical (>80%), present the estimate and recommend decomposition before proceeding. The re-route prompt at critical pressure is NOT affected by UAT fast-forward.
 
 ---
 
