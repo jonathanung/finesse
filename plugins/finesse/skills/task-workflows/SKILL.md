@@ -78,6 +78,40 @@ Do NOT decompose when:
 
 ---
 
+## Shared Phase Templates
+
+These templates define common patterns used across multiple workflows. Each task-type workflow references these and provides only its unique customization.
+
+### Exploration Phase Template
+
+Every exploration/investigation phase follows this pattern:
+
+1. **Cache check**: Follow Exploration Cache loading procedure in finesse.md. On cache hit, launch 1 focused agent with cached context. On cache miss, proceed with full exploration.
+2. **Launch agents**: Launch the task-type-specified number of code-explorer agents with the task-specific prompts listed in each workflow.
+3. **Read files**: After agents return, read all essential files identified. Build deep understanding before proceeding.
+4. **Cache save**: Follow Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
+
+### Scope Analysis Phase Template [UAT]
+
+**Goal**: Determine whether the task should be decomposed into multiple independent ralph-loop sub-workflows.
+
+1. Launch 1 **code-architect** agent in decomposition mode with exploration findings and task requirements. Pass the task-type-specific metrics from the Decomposition Metrics table above.
+2. Launch 1 **task-decomposer** agent to validate the proposal.
+3. **Branching**: If SINGLE_WORKFLOW → present at UAT and proceed. If DECOMPOSE → present sub-workflows, dependency graph, and wave assignment at UAT.
+4. **User override**: Warn about risks (high iteration count, broad scope) but respect the decision.
+
+**UAT topics**: decomposition decision, sub-workflows (if any), dependency graph, impact on remaining phases
+
+### Plan Construction Phase Template
+
+1. If decomposed during Scope Analysis, run Plan Construction independently per sub-workflow (see Multi-Workflow Execution section).
+2. Build a complete ralph-loop prompt per the meta-prompting skill template with the task-type-specific content (cold start, phases, guardrails) listed in each workflow.
+3. **Subagent analysis**: After git configuration, analyze phases for subagent eligibility per meta-prompting skill heuristics. Ask user via Subagent Configuration Prompt in finesse.md.
+4. **Context budget**: Compute estimate per Context Budget Estimation Procedure in finesse.md. If critical (>80%), trigger re-route.
+5. Determine `--max-iterations` with reasoning using the task-type-specific iteration ranges listed in each workflow.
+
+---
+
 ## Feature Development Workflow (8 phases)
 
 ### Phase 1: Discovery (deep)
@@ -99,40 +133,16 @@ Do NOT proceed until the user confirms your understanding is correct. This is NO
 
 **Goal**: Understand relevant existing code and patterns.
 
-**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
-
-Launch 2-3 **code-explorer** agents in parallel via Task tool. Each explores a different aspect:
+Follow the Exploration Phase Template. Launch 2-3 **code-explorer** agents:
 - Agent 1: "Find features similar to [feature] in this codebase. Trace their implementation end-to-end. Return entry points, execution flow, key components, and essential files."
 - Agent 2: "Map the architecture and abstractions in [relevant area]. Identify patterns, conventions, file organization, and dependencies."
 - Agent 3 (if applicable): "Analyze the current implementation of [related feature]. How does it handle [relevant concern like auth, data flow, error handling]?"
 
-After agents return, READ all essential files they identified. Build deep understanding before proceeding.
-
-**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
-
-**UAT presentation for this phase:**
-- **What was done**: Explored codebase for similar features, architecture patterns, and conventions.
-- **Key findings**: Similar features and how they are implemented, architecture patterns and conventions discovered, key files and their responsibilities.
-- **Impact on next phases**: These findings constrain the architecture design and inform clarifying questions.
+**UAT topics**: similar features found, architecture patterns and conventions, key files and responsibilities
 
 ### Phase 3: Scope Analysis & Decomposition [UAT]
 
-**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
-
-Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates code complexity (files touched), independent concerns, and integration points from the framework section above.
-
-Launch 1 **task-decomposer** agent to validate the decomposition proposal.
-
-**Branching**:
-- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
-- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
-
-**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
-
-**UAT presentation for this phase:**
-- **What was done**: Analyzed task scope against decomposition metrics — code complexity, independent concerns, integration points.
-- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
-- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+Follow the Scope Analysis Phase Template using **feature** metrics.
 
 ### Phase 4: Clarifying Questions
 
@@ -158,40 +168,19 @@ Launch 2-3 **code-architect** agents in parallel, each with a different focus:
 - Agent 2 (Clean Architecture): "Design an implementation prioritizing maintainability, clean abstractions, and testability. Context: [same]"
 - Agent 3 (Pragmatic Balance): "Design an implementation balancing speed and quality, fitting existing patterns. Context: [same]"
 
-**UAT presentation for this phase:**
-- **What was done**: Designed 2-3 implementation approaches with different focuses (minimal changes, clean architecture, pragmatic balance).
-- **Key findings**: Each approach with its architecture decisions, component design, trade-offs, and verification strategy. Your recommendation with reasoning.
-- **Impact on next phases**: The chosen approach determines the plan's phase structure, file scope, and verification commands.
+**UAT topics**: each approach with architecture decisions, trade-offs, and verification strategy; your recommendation with reasoning
 
 Note: When the user selects "Accept" at this checkpoint, ask which approach they are accepting (or if they accept your recommendation). When they select "Provide feedback" or "Make specific changes", the feedback may target a specific approach or request an entirely different direction.
 
 ### Phase 6: Plan Construction [UAT]
 
-**Goal**: Build the ralph-loop prompt from the chosen architecture.
+Follow the Plan Construction Phase Template. Task-specific content:
+- **Cold start**: check current state of files and patterns discovered during exploration
+- **Phases**: ordered matching the architecture's build sequence with verification commands
+- **Guardrails**: task-specific based on the chosen architecture
+- **Iteration range**: Simple (1-2 files): 8-12, Medium (3-5 files): 12-18, Complex (6+ files): 18-25
 
-If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
-
-Using the chosen approach, construct a complete ralph-loop prompt following the template in the meta-prompting skill. The prompt must include:
-- Cold start paragraph referencing the specific files and patterns discovered
-- Ordered phases matching the architecture's build sequence
-- Verification commands for each phase (discovered during exploration)
-- Scope constraints (files to modify, files to leave alone)
-- Task-specific guardrails based on the architecture
-- Completion criteria derived from the requirements
-
-**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
-
-**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
-
-Determine ralph-loop `--max-iterations` with reasoning:
-- Simple feature (1-2 files): 8-12
-- Medium feature (3-5 files): 12-18
-- Complex feature (6+ files): 18-25
-
-**UAT presentation for this phase:**
-- **What was done**: Constructed the full ralph-loop prompt from the chosen architecture.
-- **Key findings**: The complete prompt including cold start, ordered phases, verification commands, scope constraints, guardrails, and completion criteria. The recommended `--max-iterations` with reasoning.
-- **Impact on next phases**: This is the near-final prompt. After acceptance, it goes to the validation agents for automated review.
+**UAT topics**: complete prompt with cold start, phases, verification, guardrails, completion criteria; recommended iterations with reasoning
 
 ### Phase 7: Validation
 
@@ -227,39 +216,17 @@ Do NOT proceed until you have a clear reproduction path. This is NOT a UAT check
 
 **Goal**: Trace the bug through the code.
 
-**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
-
-Launch 2 **code-explorer** agents in parallel:
+Follow the Exploration Phase Template. Launch 2 **code-explorer** agents:
 - Agent 1: "Trace the execution path for [the failing operation]. Start from [entry point] and follow through to where [the failure occurs]. Identify every file and function in the chain."
 - Agent 2: "Search for recent changes to [affected area]. Check git history for files related to [the bug]. Find any related tests that might be passing incorrectly."
 
-After agents return, read all identified files. Map the exact code path where the bug occurs.
+After agents return, map the exact code path where the bug occurs.
 
-**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
-
-**UAT presentation for this phase:**
-- **What was done**: Traced the execution path and investigated recent changes related to the bug.
-- **Key findings**: The exact code path where the bug occurs, relevant files and functions, recent changes to the affected area, related tests.
-- **Impact on next phases**: This evidence drives root cause analysis.
+**UAT topics**: exact code path where bug occurs, relevant files and functions, recent changes, related tests
 
 ### Phase 3: Scope Analysis & Decomposition [UAT]
 
-**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
-
-Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates triage effort (hypothesis count), multi-stage fixes, and regression surface from the framework section above.
-
-Launch 1 **task-decomposer** agent to validate the decomposition proposal.
-
-**Branching**:
-- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
-- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
-
-**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
-
-**UAT presentation for this phase:**
-- **What was done**: Analyzed task scope against decomposition metrics — triage effort, multi-stage fixes, regression surface.
-- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
-- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+Follow the Scope Analysis Phase Template using **bugfix** metrics.
 
 ### Phase 4: Root Cause Analysis [UAT]
 
@@ -272,10 +239,7 @@ Based on investigation:
 
 If multiple possible causes, present them ranked by likelihood.
 
-**UAT presentation for this phase:**
-- **What was done**: Analyzed investigation findings to identify the root cause.
-- **Key findings**: Root cause hypothesis with supporting evidence, type of error (logic, data, race condition, etc.), related bugs that share the same root cause (if any).
-- **Impact on next phases**: The confirmed root cause determines the fix strategy.
+**UAT topics**: root cause hypothesis with evidence, error type, related bugs sharing the same root cause
 
 ### Phase 5: Fix Strategy [UAT]
 
@@ -286,31 +250,15 @@ If multiple possible causes, present them ranked by likelihood.
 - Identify what existing tests might need updating
 - Check for related code that might have the same bug
 
-**UAT presentation for this phase:**
-- **What was done**: Designed a fix strategy with regression prevention.
-- **Key findings**: The minimal fix for the root cause, tests to add for regression prevention, existing tests to update, related code to check.
-- **Impact on next phases**: The accepted fix strategy becomes the plan's phase structure and scope.
+**UAT topics**: minimal fix, regression tests to add, existing tests to update, related code to check
 
 ### Phase 6: Plan Construction
 
-If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
-
-Build the ralph-loop prompt focused on:
-- Cold start: check if the bug is still present before fixing
-- Phase 1: Fix the root cause (specific files, specific changes)
-- Phase 2: Add regression tests
-- Phase 3: Verify fix doesn't break related functionality
-- Verification: run test suite, specifically the failing case
-- Guardrails: "Do NOT fix symptoms — fix the root cause", "Do NOT modify unrelated code", "Verify the original reproduction case passes"
-
-**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
-
-**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
-
-Ralph-loop iterations:
-- Simple bug (one file, clear cause): 5-8
-- Medium bug (multi-file, clear cause): 8-12
-- Complex bug (unclear cause, multiple files): 12-18
+Follow the Plan Construction Phase Template. Task-specific content:
+- **Cold start**: check if the bug is still present before fixing
+- **Phases**: Phase 1: Fix root cause → Phase 2: Add regression tests → Phase 3: Verify no breakage
+- **Guardrails**: "Do NOT fix symptoms — fix the root cause", "Do NOT modify unrelated code", "Verify the original reproduction case passes"
+- **Iteration range**: Simple (one file, clear cause): 5-8, Medium (multi-file, clear cause): 8-12, Complex (unclear cause, multiple files): 12-18
 
 ### Phase 7: Validation + Presentation
 
@@ -339,39 +287,17 @@ This is NOT a UAT checkpoint — Scope Definition requires iterative back-and-fo
 
 **Goal**: Map what exists before changing it.
 
-**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
-
-Launch 1-2 **code-explorer** agents:
+Follow the Exploration Phase Template. Launch 1-2 **code-explorer** agents:
 - Agent 1: "Map the current architecture of [area to refactor]. Identify all files, dependencies, callers, and tests. List everything that would break if this code changed."
 - Agent 2 (if large scope): "Find all usages of [thing being refactored] across the codebase. Include imports, type references, and indirect dependencies."
 
-After agents return, read essential files. Build a dependency map.
+After agents return, build a dependency map.
 
-**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
-
-**UAT presentation for this phase:**
-- **What was done**: Mapped the current architecture, dependencies, callers, and tests for the area being refactored.
-- **Key findings**: All files involved, dependency map, callers, existing tests, things that would break if the code changed.
-- **Impact on next phases**: This dependency map constrains the target state design and migration strategy.
+**UAT topics**: all files involved, dependency map, callers, existing tests, breakage risks
 
 ### Phase 3: Scope Analysis & Decomposition [UAT]
 
-**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
-
-Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates scope breadth (modules), dependency chain depth, and migration stages from the framework section above.
-
-Launch 1 **task-decomposer** agent to validate the decomposition proposal.
-
-**Branching**:
-- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
-- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
-
-**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
-
-**UAT presentation for this phase:**
-- **What was done**: Analyzed task scope against decomposition metrics — scope breadth, dependency chain depth, migration stages.
-- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
-- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+Follow the Scope Analysis Phase Template using **refactor** metrics.
 
 ### Phase 4: Target State Design [UAT]
 
@@ -382,10 +308,7 @@ Launch 1 **task-decomposer** agent to validate the decomposition proposal.
 - Identify breaking changes and migration path
 - If adopting a new pattern, show examples of the pattern from the codebase (or propose one)
 
-**UAT presentation for this phase:**
-- **What was done**: Designed the target architecture with specific file changes and dependency updates.
-- **Key findings**: Target architecture, specific file changes, dependency updates, breaking changes, migration path, pattern examples.
-- **Impact on next phases**: The confirmed target state drives the migration strategy.
+**UAT topics**: target architecture, file changes, dependency updates, breaking changes, migration path
 
 ### Phase 5: Migration Strategy [UAT]
 
@@ -397,30 +320,16 @@ Design an incremental migration that:
 - Can be partially reverted if something goes wrong
 - Updates callers before removing old interfaces
 
-**UAT presentation for this phase:**
-- **What was done**: Designed an incremental migration strategy from current to target state.
-- **Key findings**: Migration phases in order, verification at each step, revert strategy, caller update plan.
-- **Impact on next phases**: The accepted migration strategy becomes the plan's phase structure.
+**UAT topics**: migration phases in order, verification at each step, revert strategy, caller update plan
 
 ### Phase 6: Plan Construction
 
-If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
-
-Build the ralph-loop prompt focused on:
-- Cold start: check what's already been migrated
-- Phases ordered by dependency (inner layers first, callers last)
-- Each phase independently verifiable
-- Guardrails: "Do NOT change external behavior", "Do NOT skip updating callers", "Run full test suite after each phase", "Make targeted edits, not file rewrites"
-- Completion: all tests pass, no references to old pattern remain
-
-**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
-
-**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
-
-Ralph-loop iterations:
-- Small refactor (1-3 files): 5-8
-- Medium refactor (4-8 files): 10-15
-- Large refactor (9+ files): 15-22
+Follow the Plan Construction Phase Template. Task-specific content:
+- **Cold start**: check what's already been migrated
+- **Phases**: ordered by dependency (inner layers first, callers last), each independently verifiable
+- **Guardrails**: "Do NOT change external behavior", "Do NOT skip updating callers", "Run full test suite after each phase", "Make targeted edits, not file rewrites"
+- **Completion**: all tests pass, no references to old pattern remain
+- **Iteration range**: Small (1-3 files): 5-8, Medium (4-8 files): 10-15, Large (9+ files): 15-22
 
 ### Phase 7: Validation + Presentation
 
@@ -434,9 +343,7 @@ Validate and present.
 
 **Goal**: Understand what's tested and what isn't.
 
-**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
-
-Launch 1-2 **code-explorer** agents:
+Follow the Exploration Phase Template. Launch 1-2 **code-explorer** agents:
 - Agent 1: "Find all test files in this project. Identify the testing framework, test patterns, and conventions used. Map which source files have corresponding tests and which don't."
 - Agent 2: "Analyze [area to test]. Identify all public functions, API endpoints, and user-facing behavior. Note edge cases, error paths, and boundary conditions."
 
@@ -448,31 +355,11 @@ Ask the user:
 
 After gathering exploration results AND user answers, synthesize a coverage picture.
 
-**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
-
-**UAT presentation for this phase:**
-- **What was done**: Analyzed existing test coverage and gathered testing priorities from the user.
-- **Key findings**: Testing framework and conventions, coverage map (what is tested vs not), user's priority areas and coverage goals.
-- **Impact on next phases**: This drives the test strategy prioritization.
+**UAT topics**: testing framework and conventions, coverage map, user's priority areas and coverage goals
 
 ### Phase 2: Scope Analysis & Decomposition [UAT]
 
-**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
-
-Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates coverage breadth (areas), suite size, and framework heterogeneity from the framework section above.
-
-Launch 1 **task-decomposer** agent to validate the decomposition proposal.
-
-**Branching**:
-- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
-- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
-
-**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
-
-**UAT presentation for this phase:**
-- **What was done**: Analyzed task scope against decomposition metrics — coverage breadth, suite size, framework heterogeneity.
-- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
-- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+Follow the Scope Analysis Phase Template using **testing** metrics.
 
 ### Phase 3: Test Strategy [UAT]
 
@@ -484,10 +371,7 @@ Based on exploration:
 - Identify shared test utilities or fixtures to create
 - Map dependencies that need mocking/stubbing
 
-**UAT presentation for this phase:**
-- **What was done**: Designed a test strategy prioritizing untested areas by risk.
-- **Key findings**: Untested functions/paths ranked by risk, recommended test types per area, shared utilities or fixtures to create, dependencies needing mocking/stubbing.
-- **Impact on next phases**: The accepted strategy determines which tests to write and in what order.
+**UAT topics**: untested paths ranked by risk, test types per area, shared utilities, mocking dependencies
 
 ### Phase 4: Clarifying Questions
 
@@ -500,23 +384,11 @@ Based on exploration:
 
 ### Phase 5: Plan Construction
 
-If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
-
-Build the ralph-loop prompt focused on:
-- Cold start: run existing test suite, check current coverage
-- Phases ordered by priority (critical paths first)
-- Each phase adds tests for one logical area
-- Verification: test suite passes, coverage increases
-- Guardrails: "Do NOT modify source code to make tests pass", "Follow existing test patterns", "Test behavior not implementation", "Do NOT write tests that test the framework"
-
-**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
-
-**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
-
-Ralph-loop iterations:
-- Small test suite (5-10 tests): 5-8
-- Medium test suite (10-25 tests): 10-15
-- Large test suite (25+ tests): 15-20
+Follow the Plan Construction Phase Template. Task-specific content:
+- **Cold start**: run existing test suite, check current coverage
+- **Phases**: ordered by priority (critical paths first), each adds tests for one logical area
+- **Guardrails**: "Do NOT modify source code to make tests pass", "Follow existing test patterns", "Test behavior not implementation", "Do NOT write tests that test the framework"
+- **Iteration range**: Small (5-10 tests): 5-8, Medium (10-25 tests): 10-15, Large (25+ tests): 15-20
 
 ### Phase 6: Validation + Presentation
 
@@ -543,37 +415,15 @@ Do not accept vague performance complaints. Insist on specifics: which operation
 
 **Goal**: Find the actual bottleneck, don't guess.
 
-**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
-
-Launch 1-2 **code-explorer** agents:
+Follow the Exploration Phase Template. Launch 1-2 **code-explorer** agents:
 - Agent 1: "Trace the execution path of [slow operation]. Identify database queries, external API calls, loops, and data transformations. Flag anything that could be O(n²) or worse."
 - Agent 2: "Find caching, indexing, and optimization patterns already used in this codebase. Identify if [slow area] is missing any of these."
 
-**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
-
-**UAT presentation for this phase:**
-- **What was done**: Traced execution paths and analyzed where time is actually spent.
-- **Key findings**: Identified bottlenecks with evidence (database queries, external calls, loops, data transformations), existing optimization patterns in the codebase, what the slow area is missing.
-- **Impact on next phases**: These findings drive the optimization strategy — what to optimize first and how.
+**UAT topics**: identified bottlenecks with evidence, existing optimization patterns, what the slow area is missing
 
 ### Phase 3: Scope Analysis & Decomposition [UAT]
 
-**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
-
-Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates bottleneck count, scope breadth, and measurement independence from the framework section above.
-
-Launch 1 **task-decomposer** agent to validate the decomposition proposal.
-
-**Branching**:
-- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
-- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
-
-**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
-
-**UAT presentation for this phase:**
-- **What was done**: Analyzed task scope against decomposition metrics — bottleneck count, scope breadth, measurement independence.
-- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
-- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+Follow the Scope Analysis Phase Template using **performance** metrics.
 
 ### Phase 4: Optimization Strategy [UAT]
 
@@ -583,30 +433,16 @@ Launch 1 **task-decomposer** agent to validate the decomposition proposal.
 - Each approach must have a measurable before/after verification
 - Identify risks (correctness issues, cache invalidation complexity, etc.)
 
-**UAT presentation for this phase:**
-- **What was done**: Designed optimization approaches ranked by expected impact.
-- **Key findings**: Optimization approaches with expected impact, measurable before/after verification for each, risks and trade-offs.
-- **Impact on next phases**: The accepted optimization strategy determines the plan's phase structure and verification benchmarks.
+**UAT topics**: optimization approaches with expected impact, measurable verification for each, risks and trade-offs
 
 ### Phase 5: Plan Construction
 
-If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
-
-Build the ralph-loop prompt focused on:
-- Cold start: run baseline benchmark, record numbers
-- Each phase optimizes one specific bottleneck
-- Verification: run benchmark after each change, compare to baseline
-- Guardrails: "Do NOT sacrifice correctness for speed", "Measure before and after every change", "If an optimization makes no measurable difference, revert it"
-- Completion: benchmark meets target threshold
-
-**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
-
-**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
-
-Ralph-loop iterations:
-- Single bottleneck: 5-10
-- Multiple bottlenecks: 10-18
-- System-wide optimization: 15-22
+Follow the Plan Construction Phase Template. Task-specific content:
+- **Cold start**: run baseline benchmark, record numbers
+- **Phases**: each optimizes one specific bottleneck with benchmark verification
+- **Guardrails**: "Do NOT sacrifice correctness for speed", "Measure before and after every change", "If an optimization makes no measurable difference, revert it"
+- **Completion**: benchmark meets target threshold
+- **Iteration range**: Single bottleneck: 5-10, Multiple bottlenecks: 10-18, System-wide: 15-22
 
 ### Phase 6: Validation + Presentation
 
@@ -636,40 +472,18 @@ Do NOT proceed until the research question is specific enough to have a clear "d
 
 **Goal**: Map codebase sources, architecture, and prior decisions related to the research topic.
 
-**Exploration cache**: Before launching exploration agents, follow the Exploration Cache procedure in finesse.md. On cache hit, load cached baseline and matching entries as context, then launch 1 focused code-explorer agent for the task-specific area not already covered. On cache miss, proceed with the full exploration below.
-
-Launch 2-3 **code-explorer** agents in parallel:
+Follow the Exploration Phase Template. Launch 2-3 **code-explorer** agents:
 - Agent 1: "Find all code, configuration, and documentation related to [research topic]. Identify relevant files, patterns, and conventions. Return file paths and key excerpts."
 - Agent 2: "Map the architecture and design decisions in [relevant area]. Identify how the current implementation works, what trade-offs were made, and where decisions are documented (comments, ADRs, READMEs)."
 - Agent 3 (if applicable): "Search for prior art, alternative approaches, or related implementations in this codebase. Look for TODOs, FIXMEs, or comments referencing [topic]. Check git history for relevant discussions."
 
-After agents return, READ all identified files. Build a source inventory before proceeding.
+After agents return, build a source inventory before proceeding.
 
-**Cache update**: After gathering and synthesizing exploration results, follow the Cache Saving procedure in finesse.md to persist findings to `.finesse/exploration-cache.json`.
-
-**UAT presentation for this phase:**
-- **What was done**: Mapped codebase sources, architecture, and prior decisions related to the research topic.
-- **Key findings**: Sources found and their relevance, prior decisions or context discovered, gaps where external research may be needed.
-- **Impact on next phases**: This source inventory shapes the research plan outline and investigation strategy.
+**UAT topics**: sources found and relevance, prior decisions discovered, gaps needing external research
 
 ### Phase 3: Scope Analysis & Decomposition [UAT]
 
-**Goal**: Determine whether this task should be decomposed into multiple independent ralph-loop sub-workflows.
-
-Launch 1 **code-architect** agent with decomposition focus, passing the exploration findings and task requirements. The architect evaluates scoping breadth (topics), section count, and investigation independence from the framework section above.
-
-Launch 1 **task-decomposer** agent to validate the decomposition proposal.
-
-**Branching**:
-- If architect recommends **SINGLE_WORKFLOW**: present the recommendation at UAT and proceed to the next phase as normal.
-- If architect recommends **DECOMPOSE**: present proposed sub-workflows, dependency graph, and wave assignment at UAT.
-
-**User override**: If the user overrides to single workflow: warn about risks (high iteration count, broad scope) but respect the decision and proceed with single-workflow path.
-
-**UAT presentation for this phase:**
-- **What was done**: Analyzed task scope against decomposition metrics — scoping breadth, section count, investigation independence.
-- **Key findings**: Decomposition decision (SINGLE_WORKFLOW or DECOMPOSE), proposed sub-workflows if any, dependency graph and wave assignment if decomposed.
-- **Impact on next phases**: Determines whether remaining phases run as a single workflow or per-sub-workflow.
+Follow the Scope Analysis Phase Template using **research** metrics.
 
 ### Phase 4: Research Plan & Clarifying Questions [UAT]
 
@@ -688,10 +502,7 @@ Present ALL clarifying questions:
 
 **Wait for the user to answer all clarifying questions.** Then incorporate their answers into the research plan.
 
-**UAT presentation for this phase:**
-- **What was done**: Proposed research outline, asked clarifying questions, and incorporated the user's answers.
-- **Key findings**: The finalized document outline with sections, expected depth per section, what can be answered from the codebase vs external knowledge.
-- **Impact on next phases**: This outline structures the investigation strategy and becomes the deliverable skeleton.
+**UAT topics**: finalized outline with sections, depth per section, codebase vs external knowledge split
 
 ### Phase 5: Investigation Strategy [UAT]
 
@@ -708,49 +519,31 @@ Key constraints:
 - Every claim must cite evidence: file:line, command output, or URL
 - Read-only approach to source code — research must NOT modify any existing files
 
-**UAT presentation for this phase:**
-- **What was done**: Defined the investigation strategy for each section of the research outline.
-- **Key findings**: Per-section investigation plan (questions to answer, evidence needed, commands to run), rabbit holes to avoid, constraints.
-- **Impact on next phases**: The accepted investigation strategy drives the ralph-loop prompt's phase structure.
+**UAT topics**: per-section investigation plan, rabbit holes to avoid, constraints
 
 ### Phase 6: Plan Construction
 
 **Goal**: Build the ralph-loop prompt with research-specific adaptations.
 
-If this workflow was decomposed during Scope Analysis, run Plan Construction independently for each sub-workflow. Each sub-workflow gets its own prompt scoped to its concern and files, sharing the exploration context gathered earlier. See the Multi-Workflow Execution section below.
-
-Build the ralph-loop prompt focused on:
-- Cold start: check if the deliverable file exists, read it, determine what sections are complete vs remaining, resume from where the document left off
-- Ordered phases: one phase per document section, in outline order
-- Verification via structural commands:
-  - `grep -c "^## " <deliverable>` — check section count matches outline
-  - `wc -w <deliverable>` — check minimum word count is met
-  - `grep -c "TODO\|PLACEHOLDER\|TBD" <deliverable>` — check no placeholders remain
-  - `grep -c "file:.*line\|\.rb:\|\.ts:\|\.py:\|http" <deliverable>` — check evidence citations exist
+Follow the Plan Construction Phase Template. Task-specific content:
+- **Cold start**: check if the deliverable file exists, read it, determine what sections are complete vs remaining, resume from where the document left off
+- **Phases**: one phase per document section, in outline order
+- **Verification**: structural commands:
+  - `grep -c "^## " <deliverable>` — section count matches outline
+  - `wc -w <deliverable>` — minimum word count met
+  - `grep -c "TODO\|PLACEHOLDER\|TBD" <deliverable>` — no placeholders remain
+  - `grep -c "file:.*line\|\.rb:\|\.ts:\|\.py:\|http" <deliverable>` — evidence citations exist
   - Section existence checks via `grep "^## <Section Name>" <deliverable>`
-- Scope constraints: the ONLY file created or modified is the deliverable document — source code is strictly read-only
-- Research-specific guardrails:
+- **Scope**: the ONLY file created or modified is the deliverable document — source code is strictly read-only
+- **Guardrails**:
   - "Do NOT modify any source code files — the deliverable document is the only writable file"
   - "Every claim must cite evidence: file:line reference, command output, or URL"
   - "Do NOT spend more than 2 iterations on any single section — move on and mark incomplete sections with TODO"
   - "Do NOT add filler, preamble, or restating the research question — every sentence must add information"
   - "Do NOT go down rabbit holes — if a subtopic is tangential, note it as 'Out of Scope' and move on"
   - "Cross-reference prior sections when building on earlier findings"
-- Completion criteria:
-  - All sections from the outline are present
-  - No TODO, PLACEHOLDER, or TBD markers remain
-  - Evidence citations present in every substantive section
-  - Synthesis/recommendation section cross-references prior sections
-  - Minimum word count met (defined during Phase 3)
-
-**Subagent analysis**: After git configuration, analyze the designed phases for subagent eligibility using the heuristics from the meta-prompting skill. If eligible phases exist, ask the user whether to include subagent instructions via the Subagent Configuration Prompt in finesse.md.
-
-**Context budget**: Compute the context budget estimate using the Context Budget Estimation Procedure in finesse.md. Include the result in the plan presentation and plan metadata. If pressure is critical, trigger the re-route procedure before continuing.
-
-Ralph-loop iterations:
-- Narrow research (1-2 sections, single area): 5-8
-- Medium research (3-5 sections, comparison): 8-14
-- Broad research (6+ sections, comprehensive): 14-20
+- **Completion**: all sections present, no TODO/PLACEHOLDER/TBD, evidence citations in every substantive section, synthesis cross-references prior sections, minimum word count met
+- **Iteration range**: Narrow (1-2 sections): 5-8, Medium (3-5 sections): 8-14, Broad (6+ sections): 14-20
 
 ### Phase 7: Validation
 

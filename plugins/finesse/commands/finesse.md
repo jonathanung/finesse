@@ -29,18 +29,7 @@ Enter plan mode immediately. All work happens in plan mode until the plan is pre
 
 ## Step 1: Classify the Task Type
 
-Determine the task type from the user's description:
-
-| Type | Signals |
-|---|---|
-| **feature** | "Add", "build", "create", "implement", "new" — introduces new functionality |
-| **bugfix** | "Fix", "broken", "not working", "error", "crash", "wrong", "regression" |
-| **refactor** | "Refactor", "clean up", "reorganize", "restructure", "improve code", "tech debt" |
-| **testing** | "Add tests", "test coverage", "write tests", "validate", "QA" |
-| **performance** | "Slow", "optimize", "performance", "speed up", "bottleneck", "latency" |
-| **research** | "Research", "investigate", "compare", "evaluate", "analyze", "study", "survey", "document", "explore options", "understand", "assessment", "trade-offs", "pros and cons", "spike", "feasibility" |
-
-If ambiguous or the task matches multiple types, ask the user which type best describes their task. Do NOT guess.
+Classify using the Task Type Detection table in the **task-workflows** skill: feature, bugfix, refactor, testing, performance, or research. If ambiguous, ASK the user. Do NOT guess.
 
 Once classified, follow the corresponding workflow from the **task-workflows** skill. That skill is the authoritative source for phase-by-phase instructions. The summary below is for quick reference only.
 
@@ -101,29 +90,9 @@ Previous inline confirmation gates within `[UAT]`-marked phases (e.g., "Present 
 
 ---
 
-## Multi-Workflow Branching
-
-After the Scope Analysis & Decomposition phase, the workflow branches:
-
-### Single Workflow Path
-
-If decomposition was not warranted (code-architect recommended SINGLE_WORKFLOW and user accepted):
-
-Continue with the remaining phases as a single linear workflow. Output format: flat `ralph-plans/<name>.md`, `<name>-promise.txt`, `<name>-plan.md` (unchanged from v0.2.0).
-
-### Multi-Workflow Path
-
-If decomposition was accepted:
-
-1. **Shared context**: Exploration/investigation findings from earlier phases are shared across ALL sub-workflows. Do NOT re-explore for each.
-2. **Per-sub-workflow phases**: Starting from the phase after scope analysis, run remaining workflow phases independently for each sub-workflow. Each gets its own clarifying questions (if applicable), architecture/strategy, plan construction, and UAT checkpoints (unless fast-forwarded).
-3. **Processing order**: Process sub-workflows in wave order (Wave 1 first, then Wave 2). Within a wave, process sequentially to avoid overwhelming the user with parallel UAT.
-4. **Output format**: Multi-workflow session directory structure (see meta-prompting skill for details).
-5. **Execution graph**: Generate `execution-graph.md` showing wave structure, dependencies, and recommended execution order.
-
----
-
 ## Common Final Phases (all task types)
+
+**Multi-Workflow mode**: If the Scope Analysis phase resulted in an accepted decomposition, exploration/investigation findings are shared across all sub-workflows (do NOT re-explore). Run remaining workflow phases independently per sub-workflow, in wave order (Wave 1 first), processing sequentially within a wave. Generate `execution-graph.md` with wave structure, dependencies, and run instructions. Single-workflow mode continues linearly with flat `ralph-plans/<name>.*` output format.
 
 ### Plan Construction
 
@@ -188,122 +157,41 @@ After the Git Configuration prompt and before assembling the final prompt, analy
 
 ### Context Budget Estimation Procedure
 
-After subagent configuration and before assembling the ralph-loop prompt, estimate context window pressure. This estimation is mandatory and uses data already gathered during earlier phases. It is NOT affected by UAT fast-forward — the re-route at critical pressure always fires.
+After subagent configuration and before assembling the ralph-loop prompt, estimate context window pressure. This estimation is mandatory and NOT affected by UAT fast-forward. Reference tables (Unread File Defaults, File Size Categories, Phase Weight Multipliers, Context Pressure Thresholds, API Cost Estimation) are in the meta-prompting skill.
 
-**Step 1: Read context window size.** Check `.finesse/config.json` for a `context_window` field. If absent, use the default: 200,000 tokens.
+1. Read `context_window` from `.finesse/config.json` (default: 200,000 tokens)
+2. Gather Implementation Map files from architecture phase
+3. Estimate line counts: read files use actual lines; unread files use Unread File Defaults (small=200, medium=1000, large=5000)
+4. Categorize files by File Size Categories; count per category
+5. Per-phase token estimate: sum file tokens (lines × 10) × Phase Weight Multiplier + 5,000 overhead
+6. Peak = prompt_base (2,000–5,000) + heaviest_phase + 20,000 reasoning overhead
+7. `pressure_pct = peak / context_window × 100` → map via Pressure Thresholds (low <30%, moderate 30-60%, high 60-80%, critical >80%)
+8. Cost range from API Cost Estimation Table using recommended iterations + pressure
+9. Handle: low/moderate → proceed; high → warn; critical (>80%) → re-route
 
-**Step 2: Gather the Implementation Map.** Collect the file list from the architecture phase's Implementation Map (or equivalent: the Build Sequence for features, the fix strategy for bugfixes, the migration strategy for refactors, etc.). Each entry has a file path and the architect's complexity estimate (small/medium/large).
+**Re-route at critical pressure**: STOP plan construction. Present context budget analysis showing which files/phases drive high pressure. Use `AskUserQuestion`:
+1. **Return to Scope Analysis for decomposition** — constraint: each sub-workflow below 60%
+2. **Continue anyway (I accept the risk)** — include prominent warning in plan
+3. **Reduce scope manually** — user trims files/phases, re-run estimation
 
-**Step 3: Estimate line counts per file.** For each file in the Implementation Map:
-- If the file was read during exploration (via the Read tool), use the last line number visible in the Read output as the line count.
-- If the file was NOT read, use the Unread File Defaults from the meta-prompting skill based on the architect's complexity estimate (small = 200 lines, medium = 1,000 lines, large = 5,000 lines).
-
-**Step 4: Categorize files.** Using the File Size Categories from the meta-prompting skill:
-- Small: < 2,000 lines
-- Medium: 2,000 – 10,000 lines
-- Large: > 10,000 lines
-
-Count files in each category.
-
-**Step 5: Estimate per-phase context consumption.** For each phase in the designed architecture:
-1. Identify files that phase touches (from the Build Sequence / Implementation Map).
-2. Sum the estimated tokens for those files (lines × 10).
-3. Apply the Phase Weight Multiplier from the meta-prompting skill:
-   - Implementation phases (file modification): × 2.0
-   - Verification phases (command execution): × 0.5
-   - Exploration / cold-start: × 1.5
-4. Add per-phase overhead: 5,000 tokens.
-
-**Step 6: Calculate peak single-iteration context.** The relevant metric is peak context within a single iteration (since ralph-loop re-reads the prompt each iteration):
-
-```
-peak_iteration_context = prompt_base_tokens + heaviest_phase_weighted_tokens + agent_reasoning_overhead
-```
-
-Where:
-- `prompt_base_tokens`: estimated prompt size (typically 2,000–5,000 tokens)
-- `heaviest_phase_weighted_tokens`: the phase with the highest weighted token load (from Step 5)
-- `agent_reasoning_overhead`: 20,000 tokens
-
-**Step 7: Calculate pressure rating.**
-
-```
-pressure_pct = (peak_iteration_context / context_window) × 100
-```
-
-Map to rating using the Context Pressure Thresholds from the meta-prompting skill:
-- low: < 30%
-- moderate: 30% – 60%
-- high: 60% – 80%
-- critical: > 80%
-
-**Step 8: Estimate API cost range.** Using the recommended `--max-iterations` (determined from the task-type iteration count tables) and the pressure rating, look up the cost range in the API Cost Estimation Table from the meta-prompting skill.
-
-**Step 9: Handle pressure thresholds.**
-- **low or moderate**: Proceed to prompt assembly. Include context budget in presentation.
-- **high** (60%–80%): Proceed to prompt assembly but include a prominent warning in the plan presentation recommending the user consider decomposition.
-- **critical** (>80%): Trigger the re-route procedure (see below).
-
-**Re-route at critical pressure**: If `pressure_pct` exceeds 80%, STOP plan construction. Present the context budget analysis to the user, showing which files and phases drive the high pressure. Use `AskUserQuestion`:
-
-- Question: "Context pressure is critical ([X]%). The planned ralph-loop execution will likely exceed the context window, causing degraded performance or failure."
-- Options:
-  1. **Return to Scope Analysis for decomposition** — Rewind to the Scope Analysis phase (F3/B3/R3/T2/P3/RE3) with an explicit constraint that each sub-workflow must stay below 60% context pressure. Update the working file's `current_phase` back to the scope analysis phase code.
-  2. **Continue anyway (I accept the risk)** — Proceed with plan construction. Include a prominent warning in the plan presentation and plan metadata: "WARNING: Context pressure is critical ([X]%). This plan may exceed the context window during execution."
-  3. **Reduce scope manually** — The user provides feedback to trim files or phases. Re-run the context budget estimation with the reduced scope.
-
-**Multi-Workflow context budget**: In decomposed mode, estimate context budget independently for each sub-workflow (since each runs in its own context window). If any single sub-workflow exceeds 80%, fire the re-route for that specific sub-workflow — not the aggregate. Include a per-sub-workflow breakdown and an aggregate summary in `execution-graph.md`:
-
-| Sub-Workflow | Files | Peak Tokens | Pressure | Iterations | Est. Cost |
-|---|---|---|---|---|---|
-| [name] | [count] | [tokens] ([pct]%) | [rating] | [N] | [range] |
-| **Aggregate** | **[total]** | **—** | **—** | **[total]** | **[sum range]** |
+**Multi-Workflow**: Estimate per sub-workflow independently. Re-route fires per sub-workflow, not aggregate. Include breakdown in `execution-graph.md`.
 
 ### Multi-Workflow Plan Construction
 
-When the Scope Analysis phase resulted in an accepted decomposition:
-
-1. **Shared context**: Exploration findings and architecture decisions from earlier phases apply to ALL sub-workflows. Do not re-explore or re-design.
-2. **Per-sub-workflow loop**: For each sub-workflow in wave order, construct a ralph-loop prompt using the meta-prompting skill template, scoped to that sub-workflow's concern and files. The cold start paragraph must reference the shared architecture context. Include cross-sub-workflow guardrails: "Do NOT modify files outside this sub-workflow's scope: [list]."
-3. Each sub-workflow prompt gets its own iteration count recommendation.
-4. **Execution graph**: Build an `execution-graph.md` documenting wave order, dependencies, and run instructions.
-5. **Git configuration**: The git rules from the Git Configuration Prompt apply uniformly to ALL sub-workflow prompts. Do NOT re-prompt for each sub-workflow.
-6. **Subagent configuration**: The subagent analysis is performed per sub-workflow prompt. The user's choice from the Subagent Configuration Prompt applies uniformly to ALL sub-workflow prompts. Do NOT re-prompt for each sub-workflow.
+In decomposed mode: construct a ralph-loop prompt per sub-workflow using the meta-prompting skill template, scoped to that sub-workflow's concern and files. Cold start must reference shared architecture context. Include cross-sub-workflow guardrails: "Do NOT modify files outside this sub-workflow's scope: [list]." Each sub-workflow gets its own iteration count. Git and subagent configuration are asked once and applied uniformly to all sub-workflow prompts.
 
 ### Validation
 
-Launch ALL 6 validation agents in parallel on the drafted plan using the Task tool. Pass the full plan text in each agent's prompt:
-1. **clarity-checker** — requirements unambiguous for autonomous agent
-2. **completion-validator** — binary criteria, explicit promise
-3. **scope-safety-reviewer** — scope, guardrails, safety
-4. **phase-structure-analyzer** — cold start, phases, verification commands
-5. **failure-mode-auditor** — stuck-state recovery, anti-thrashing
-6. **goal-achievement-auditor** — goal achievement, truth coverage, dependency flow
+Launch ALL 6 validation agents in parallel per the **prompt-validation** skill. Handle verdicts per severity tiers and refinement budget rules defined there. Quick reference:
 
-All agents use the same verdict vocabulary: `PASS`, `FAIL`, or `NEEDS_REWORK`.
+| Tier | Agents | Behavior |
+|------|--------|----------|
+| **CRITICAL** | scope-safety-reviewer `FAIL` | Blocks unconditionally |
+| **HIGH** | clarity-checker, phase-structure-analyzer, completion-validator `FAIL` | Blocks presentation |
+| **MEDIUM** | goal-achievement-auditor, failure-mode-auditor `FAIL` | Fix within budget; warn if exhausted |
+| **LOW** | Any `NEEDS_REWORK` | Fix if budget allows |
 
-Each verdict is classified into a severity tier based on the agent and verdict type:
-
-| Tier | Condition | Behavior |
-|------|-----------|----------|
-| **CRITICAL** | scope-safety-reviewer returns `FAIL` | Blocks presentation unconditionally. Must fix before presenting. |
-| **HIGH** | clarity-checker, phase-structure-analyzer, or completion-validator returns `FAIL` | Blocks presentation. Must fix before presenting. |
-| **MEDIUM** | goal-achievement-auditor or failure-mode-auditor returns `FAIL` | Should fix within refinement budget. Can present with explicit warnings if budget exhausted. |
-| **LOW** | Any agent returns `NEEDS_REWORK` | Fix if budget allows after higher tiers resolved. |
-
-**Handling verdicts:**
-- **All PASS**: Plan is ready to present.
-- **Any CRITICAL or HIGH issues**: Must fix before presenting. Issues requiring user input → ask the user. Issues fixable by you → fix directly.
-- **Any MEDIUM issues**: Fix within refinement budget. If budget exhausted, present with explicit warnings listing each issue, its tier, and which agent flagged it.
-- **Any LOW issues (NEEDS_REWORK)**: Fix if budget allows after higher tiers resolved.
-
-When refinement budget drops below 50% remaining, prioritize CRITICAL and HIGH issues exclusively.
-
-Each fix-and-revalidate cycle costs one refinement iteration against your `--max-refinements` budget. When revalidating after fixes, re-run ALL 6 agents to catch regressions.
-
-If budget exhausted with only MEDIUM/LOW unresolved: present with explicit warnings listing each issue, its severity tier, and which agent flagged it.
-
-In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 6 validators. A CRITICAL or HIGH verdict on any sub-workflow blocks the entire plan.
+Each fix-and-revalidate cycle costs one `--max-refinements` iteration. Re-run ALL 6 agents after fixes to catch regressions. In Multi-Workflow mode, validate each sub-workflow independently.
 
 ### Presentation
 
@@ -401,49 +289,28 @@ When the Scope Analysis phase produces a DECOMPOSE recommendation and the user a
 
 ## Exploration Cache
 
-Finesse caches codebase exploration findings in `.finesse/exploration-cache.json` to speed up repeat planning sessions. The cache schema, staleness model, and merge rules are defined in the meta-prompting skill's **Exploration Cache Schema** section.
-
-### Cache Structure
-
-The cache contains a **baseline** (global codebase patterns, conventions, framework, directory structure) and **entries** (task-specific findings keyed by `<directory_scope>:<keyword>`). An optional `.finesse/config.json` controls cache behavior. See the meta-prompting skill's Exploration Cache Schema section for the full JSON schema.
+Finesse caches exploration findings in `.finesse/exploration-cache.json`. Full schema, staleness model, and merge rules are in the meta-prompting skill's **Exploration Cache Schema** section.
 
 ### Cache Loading (Before Exploration)
 
-At the START of every exploration phase (F2, B2, R2, T1, P2, RE2), BEFORE launching code-explorer agents:
+At the START of every exploration phase (F2, B2, R2, T1, P2, RE2):
 
-1. Check if `.finesse/exploration-cache.json` exists using Read. If not, skip to full exploration (cache miss).
-2. Read `.finesse/config.json` if it exists. If `cache_enabled` is false, skip to full exploration. Otherwise get `staleness_threshold` (default 50).
-3. Read the cache file.
-4. Run `git diff --name-only <baseline.commit_hash>..HEAD` and count changed files.
-5. If count >= threshold: cache miss — proceed with full exploration.
-6. If count < threshold: cache hit —
-   a. Prune stale entries: for each entry, check if any `referenced_files` appear in the diff output. Remove stale entries.
-   b. Load surviving baseline + entries whose `keywords` or `directory_scope` match the current task.
-   c. Launch 1 code-explorer agent (instead of 2-3) with: "The following baseline context is already known: [baseline]. The following area-specific findings are cached: [matching entries]. Focus your exploration on [task-specific area] and any gaps not covered by cached context. Do NOT re-discover general patterns already provided."
+1. Read `.finesse/exploration-cache.json`. If absent → cache miss, full exploration.
+2. Check `.finesse/config.json` for `cache_enabled` (default true) and `staleness_threshold` (default 50).
+3. Run `git diff --name-only <baseline.commit_hash>..HEAD`. If changed files >= threshold → cache miss.
+4. Cache hit: prune stale entries (any with `referenced_files` in diff), load surviving baseline + matching entries, launch 1 focused code-explorer agent with cached context instead of 2-3.
 
 ### Cache Saving (After Exploration)
 
-At the END of every exploration phase, AFTER exploration results are gathered and synthesis is complete, BEFORE the UAT checkpoint:
+At the END of every exploration phase, BEFORE the UAT checkpoint:
 
-1. Create `.finesse/` if it does not exist: `mkdir -p .finesse`
-2. Get current commit hash: `git rev-parse HEAD`
-3. Extract findings into cache structure:
-   - If no baseline exists or this was a cache miss: extract global findings as `baseline` (patterns, conventions, framework, directory structure). Set `baseline.commit_hash` and `baseline.last_confirmed`.
-   - Extract task-specific findings as new entries with: `keywords` from task description and architecture patterns found; `directory_scope` from primary directories explored; `referenced_files` from all files read during exploration; `summary` as 1-2 sentence description.
-4. Merge new entries with existing cache (do not overwrite unrelated entries).
-5. Write updated cache to `.finesse/exploration-cache.json`.
+1. `mkdir -p .finesse` and get commit hash via `git rev-parse HEAD`
+2. Extract baseline (if cache miss) and task-specific entries with keywords, directory_scope, referenced_files, summary
+3. Merge with existing cache (do not overwrite unrelated entries) and write to `.finesse/exploration-cache.json`
 
-### Cache Configuration
+### Cache at UAT
 
-An optional `.finesse/config.json` file with `cache_enabled` (boolean, default true) and `staleness_threshold` (integer, default 50). If absent, defaults are used. User may create or edit this file manually.
-
-### Cache Presentation at UAT
-
-When cache is used, the exploration phase UAT checkpoint MUST include:
-- A note: "**Cache status**: Loaded baseline + N matching entries. M stale entries pruned."
-- The loaded baseline context
-- New task-specific findings from the lighter exploration
-- Any gaps where cache may be insufficient
+When cache is used, the UAT checkpoint MUST disclose: cache status (loaded/pruned counts), baseline context, new findings, and any gaps.
 
 ---
 
@@ -474,6 +341,7 @@ When cache is used, the exploration phase UAT checkpoint MUST include:
 - The `.finesse/` directory is for Finesse runtime cache and configuration. It is gitignored. Cache operations are best-effort — if reading or writing the cache fails (malformed JSON, missing git commit, etc.), continue the planning session without the cache. Do NOT block exploration on cache failures.
 - When exploration uses cached context, ALWAYS disclose this at the UAT checkpoint. Never silently skip exploration.
 - Context budget estimation is mandatory during Plan Construction. If pressure is critical (>80%), present the estimate and recommend decomposition before proceeding. The re-route prompt at critical pressure is NOT affected by UAT fast-forward.
+- The Task tool may ONLY launch these agent types: code-explorer, code-architect, task-decomposer, clarity-checker, completion-validator, scope-safety-reviewer, phase-structure-analyzer, failure-mode-auditor, goal-achievement-auditor. NEVER launch general-purpose, Bash, or other agent types that could modify source code.
 
 ## Context Compaction Handling
 
@@ -483,6 +351,8 @@ When a planning session is long, Claude Code may compact context. To ensure crit
 2. **Working file structure**: ALL working files MUST include a YAML frontmatter block at the top of the file, before any markdown body content. The mandatory schema:
    ```yaml
    ---
+   mode: planning-only  # CRITICAL: Never edit source code. Never implement.
+   allowed_agents: [code-explorer, code-architect, task-decomposer, clarity-checker, completion-validator, scope-safety-reviewer, phase-structure-analyzer, failure-mode-auditor, goal-achievement-auditor]
    task_type: <feature|bugfix|refactor|testing|performance|research>
    workflow: <feature-development|bug-fix|refactor-chore|testing|performance-optimization|research>
    current_phase: <phase code, e.g., F5, B3, RE4>
@@ -514,7 +384,16 @@ When a planning session is long, Claude Code may compact context. To ensure crit
          estimated_cost_range: <string>
    ---
    ```
-   Below the YAML frontmatter, the working file body is free-form markdown containing: codebase findings, UAT checkpoint decisions and their outcomes, prompt draft (if one exists), promise draft (if one exists), open questions or blockers.
+   Below the YAML frontmatter, the working file body MUST start with a Session Constraints block, followed by free-form markdown:
+   ```markdown
+   ## Session Constraints (DO NOT DELETE)
+   - PLANNING-ONLY session. Output is a ralph-loop command. NEVER edit source code.
+   - Task agents ONLY for: code-explorer, code-architect, task-decomposer, and 6 validation agents
+   - Write ONLY to ralph-plans/ and .finesse/
+   - NEXT ACTION: [describe the current/next phase step]
+   - DO NOT: edit source files, launch general-purpose agents, implement the plan
+   ```
+   After the Session Constraints block, include: codebase findings, UAT checkpoint decisions and their outcomes, prompt draft (if one exists), promise draft (if one exists), open questions or blockers.
 3. **Recovery**: If you detect that context has been compacted (e.g., you cannot recall earlier phase outputs), read `ralph-plans/<name>-working.md` to recover state. The YAML frontmatter is parsed first to determine the exact resume point, followed by reading the markdown body for phase-specific content.
 4. **Working file naming**: Use `ralph-plans/<name>-working.md` where `<name>` matches the eventual plan name. If the plan name is not yet determined, derive a session descriptor from the first 3-4 words of the task description in kebab-case (e.g., `ralph-plans/_working-fix-token-refresh.md`).
 5. **Cleanup**: After plan acceptance and final file output, keep the working file for reference.
@@ -534,7 +413,10 @@ After context compaction occurs:
 
 1. **STOP all work immediately.** Do NOT continue where you left off from memory. Your recall of prior phases is unreliable after compaction.
 2. **Read the working file first.** Before doing ANYTHING else, read `ralph-plans/<name>-working.md` in full. This is your single source of truth.
-3. **NEVER make code changes.** Finesse does not write code. It writes plans and prompts. If you feel the urge to edit a source file, you have lost the plot — re-read the working file and this command definition.
-4. **NEVER act on stale context.** If the working file does not contain enough information to continue the current phase, tell the user what is missing and ask how to proceed. Do NOT guess or reconstruct from fragments.
-5. **Re-orient before resuming.** After reading the working file, output a brief summary to the user: what phase you are in, what has been completed, and what the next step is. Wait for user confirmation before proceeding.
-6. **No silent continuation.** You must ALWAYS surface to the user after compaction. Never silently pick up mid-phase and start producing output without first confirming recovered state with the user.
+3. **Verify plan mode.** After reading the working file, check the `mode` field in YAML frontmatter. If it says `planning-only`, you are in a Finesse session. If you are not in plan mode, call EnterPlanMode before doing anything else.
+4. **NEVER make code changes.** Finesse does not write code. It writes plans and prompts. If you feel the urge to edit a source file, you have lost the plot — re-read the working file and this command definition.
+5. **NEVER launch implementation agents.** The ONLY permitted Task agent types are those listed in the working file's `allowed_agents` field: code-explorer, code-architect, task-decomposer, and the 6 validation agents. NEVER launch general-purpose, Bash, or other agent types that could edit source code.
+6. **If a drafted prompt exists, present it — do NOT implement it.** If the working file contains a prompt draft, your ONLY job is to validate it and present it via ExitPlanMode. You must NEVER interpret a drafted prompt as instructions to execute.
+7. **NEVER act on stale context.** If the working file does not contain enough information to continue the current phase, tell the user what is missing and ask how to proceed. Do NOT guess or reconstruct from fragments.
+8. **Re-orient before resuming.** After reading the working file, output a brief summary to the user: what phase you are in, what has been completed, and what the next step is. Wait for user confirmation before proceeding.
+9. **No silent continuation.** You must ALWAYS surface to the user after compaction. Never silently pick up mid-phase and start producing output without first confirming recovered state with the user.

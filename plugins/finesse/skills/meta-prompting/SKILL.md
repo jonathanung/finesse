@@ -109,58 +109,17 @@ Write every prompt like a QA spec for a contractor you cannot talk to until the 
 
 ## Git Configuration Rules
 
-During Plan Construction, the user is always prompted about git usage. Based on their answers, include the following rules in the prompt's `## Rules` section.
+During Plan Construction, the user is prompted about git usage. Based on their answers, include the matching rules in the prompt's `## Rules` section:
 
-### No checkpointing selected
-
-```
-- Do NOT make git commits.
-- Do NOT push to remote repositories.
-```
-
-### Checkpointing enabled, no push
-
-The checkpoint rule varies by the user's chosen granularity:
-
-**After each phase:**
-```
-- After completing each phase and verifying it passes, create a git commit with a descriptive message referencing the completed phase.
-- Do NOT push to remote repositories.
-```
-
-**After each change:**
-```
-- After each logical unit of work, create a git commit with a descriptive message describing the change.
-- Do NOT push to remote repositories.
-```
-
-**Custom:**
-Use the user's verbatim description as the checkpoint rule, plus:
-```
-- Do NOT push to remote repositories.
-```
-
-### Checkpointing enabled + push
-
-The checkpoint rule (same granularity variants as above) plus a push rule instead of the prohibition:
-
-**After each phase:**
-```
-- After completing each phase and verifying it passes, create a git commit with a descriptive message referencing the completed phase.
-- Push commits to the remote repository after committing.
-```
-
-**After each change:**
-```
-- After each logical unit of work, create a git commit with a descriptive message describing the change.
-- Push commits to the remote repository after committing.
-```
-
-**Custom:**
-Use the user's verbatim description as the checkpoint rule, plus:
-```
-- Push commits to the remote repository after committing.
-```
+| Checkpointing | Granularity | Push | Rules to include |
+|---|---|---|---|
+| No | — | — | "Do NOT make git commits. Do NOT push to remote repositories." |
+| Yes | After each phase | No | "After completing each phase and verifying it passes, create a git commit with a descriptive message referencing the completed phase. Do NOT push to remote repositories." |
+| Yes | After each phase | Yes | "After completing each phase and verifying it passes, create a git commit with a descriptive message referencing the completed phase. Push commits to the remote repository after committing." |
+| Yes | After each change | No | "After each logical unit of work, create a git commit with a descriptive message describing the change. Do NOT push to remote repositories." |
+| Yes | After each change | Yes | "After each logical unit of work, create a git commit with a descriptive message describing the change. Push commits to the remote repository after committing." |
+| Yes | Custom | No | User's verbatim description + "Do NOT push to remote repositories." |
+| Yes | Custom | Yes | User's verbatim description + "Push commits to the remote repository after committing." |
 
 ## Subagent Configuration
 

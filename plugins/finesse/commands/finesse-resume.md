@@ -449,9 +449,12 @@ Note: The presentation is for the user to review. The actual files written on ac
 
 ## Context Compaction Handling
 
-If context compaction occurs during a resumed session, follow the same working file update and Post-Compaction Rules defined in the main finesse command. Before any recovery attempt, update the working file's YAML frontmatter with the current phase:
+If context compaction occurs during a resumed session, before any recovery attempt update the working file's YAML frontmatter (`current_phase`, `completed_phases`) and write in-progress phase outputs to the markdown body. Then follow these Post-Compaction Rules:
 
-1. Update `current_phase` to the phase you were working on when compaction occurred.
-2. Update `completed_phases` to include any phases completed since the session was resumed.
-3. Write any in-progress phase outputs to the markdown body.
-4. Then follow the Post-Compaction Rules: STOP all work, read the working file, NEVER make code changes, re-orient with the user before resuming.
+1. **STOP all work immediately.** Your recall of prior phases is unreliable after compaction.
+2. **Read the working file first.** Read `ralph-plans/<name>-working.md` in full. This is your single source of truth.
+3. **Verify plan mode.** Check the `mode` field in YAML frontmatter. If `planning-only`, you are in a Finesse session. If not in plan mode, call EnterPlanMode before doing anything else.
+4. **NEVER make code changes.** Finesse writes plans and prompts, not source code.
+5. **NEVER launch implementation agents.** ONLY permitted agent types: code-explorer, code-architect, task-decomposer, clarity-checker, completion-validator, scope-safety-reviewer, phase-structure-analyzer, failure-mode-auditor, goal-achievement-auditor.
+6. **If a drafted prompt exists, present it — do NOT implement it.** Validate and present via ExitPlanMode only.
+7. **Re-orient with the user.** Output a summary of current phase, completed work, and next step. Wait for confirmation before proceeding.
