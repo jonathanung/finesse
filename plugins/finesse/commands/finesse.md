@@ -282,16 +282,28 @@ Launch ALL 6 validation agents in parallel on the drafted plan using the Task to
 
 All agents use the same verdict vocabulary: `PASS`, `FAIL`, or `NEEDS_REWORK`.
 
+Each verdict is classified into a severity tier based on the agent and verdict type:
+
+| Tier | Condition | Behavior |
+|------|-----------|----------|
+| **CRITICAL** | scope-safety-reviewer returns `FAIL` | Blocks presentation unconditionally. Must fix before presenting. |
+| **HIGH** | clarity-checker, phase-structure-analyzer, or completion-validator returns `FAIL` | Blocks presentation. Must fix before presenting. |
+| **MEDIUM** | goal-achievement-auditor or failure-mode-auditor returns `FAIL` | Should fix within refinement budget. Can present with explicit warnings if budget exhausted. |
+| **LOW** | Any agent returns `NEEDS_REWORK` | Fix if budget allows after higher tiers resolved. |
+
 **Handling verdicts:**
 - **All PASS**: Plan is ready to present.
-- **Any FAIL**: Critical gaps exist. Fix before presenting. Issues requiring user input → ask the user. Issues fixable by you → fix directly.
-- **Any NEEDS_REWORK**: Fix if within refinement budget.
+- **Any CRITICAL or HIGH issues**: Must fix before presenting. Issues requiring user input → ask the user. Issues fixable by you → fix directly.
+- **Any MEDIUM issues**: Fix within refinement budget. If budget exhausted, present with explicit warnings listing each issue, its tier, and which agent flagged it.
+- **Any LOW issues (NEEDS_REWORK)**: Fix if budget allows after higher tiers resolved.
+
+When refinement budget drops below 50% remaining, prioritize CRITICAL and HIGH issues exclusively.
 
 Each fix-and-revalidate cycle costs one refinement iteration against your `--max-refinements` budget. When revalidating after fixes, re-run ALL 6 agents to catch regressions.
 
-If budget exhausted without full PASS: present the plan with explicit warnings listing every unresolved issue and which agent flagged it.
+If budget exhausted with only MEDIUM/LOW unresolved: present with explicit warnings listing each issue, its severity tier, and which agent flagged it.
 
-In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 6 validators. A FAIL on any sub-workflow blocks presentation of the entire decomposition.
+In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 6 validators. A CRITICAL or HIGH verdict on any sub-workflow blocks the entire plan.
 
 ### Presentation
 

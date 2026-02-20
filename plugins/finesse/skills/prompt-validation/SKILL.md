@@ -21,6 +21,17 @@ Use the Task tool to launch ALL SIX agents simultaneously in a single message. P
 
 Each agent returns a verdict: `PASS`, `FAIL`, or `NEEDS_REWORK`.
 
+### Severity Tiers
+
+Each verdict is classified into a severity tier based on the agent and verdict type:
+
+| Tier | Condition | Behavior |
+|------|-----------|----------|
+| **CRITICAL** | scope-safety-reviewer returns `FAIL` | Blocks presentation unconditionally. Must fix before presenting. |
+| **HIGH** | clarity-checker, phase-structure-analyzer, or completion-validator returns `FAIL` | Blocks presentation. Must fix before presenting. |
+| **MEDIUM** | goal-achievement-auditor or failure-mode-auditor returns `FAIL` | Should fix within refinement budget. Can present with explicit warnings if budget exhausted. |
+| **LOW** | Any agent returns `NEEDS_REWORK` | Fix if budget allows after higher tiers resolved. |
+
 ### Multi-Workflow Validation
 
 When the Scope Analysis phase resulted in a decomposition with multiple sub-workflows:
@@ -31,27 +42,30 @@ When the Scope Analysis phase resulted in a decomposition with multiple sub-work
 1. No file scope overlaps between parallel (same-wave) sub-workflow prompts
 2. Wave 2+ sub-workflows correctly assume wave 1 outputs as existing state (not as things to build)
 
-**Verdict aggregation**: All sub-workflow prompts must pass all 6 validators. A FAIL on any single sub-workflow blocks the entire plan.
+**Verdict aggregation**: All sub-workflow prompts must pass all 6 validators. A CRITICAL or HIGH tier verdict on any sub-workflow blocks the entire plan. MEDIUM tier verdicts on a sub-workflow generate warnings but do not block if that sub-workflow's refinement budget is exhausted.
 
 **Refinement budget**: Applies per sub-workflow independently. Each sub-workflow can use up to `--max-refinements` cycles.
 
 ### Step 2: Evaluate the Gate
 
 - **All PASS**: The plan is ready to present to the user.
-- **Any FAIL**: The plan has critical gaps. You MUST fix them before presenting.
-- **Any NEEDS_REWORK**: The plan has issues that should be fixed. Fix them if within your refinement budget.
+- **Any CRITICAL issues**: You MUST fix these before presenting. They take absolute priority.
+- **Any HIGH issues**: You MUST fix these before presenting. Second priority after CRITICAL.
+- **Any MEDIUM issues**: Fix within refinement budget. If budget exhausted, present with explicit warnings listing each unresolved issue, its tier, and which agent flagged it.
+- **Any LOW issues**: Fix if budget allows after all higher-tier issues are resolved.
 
 ### Step 3: Handle Failures
 
 For FAIL or NEEDS_REWORK verdicts:
 
-1. Collect all issues from all agents
+1. Collect all issues from all agents and classify each by severity tier (using the tier table above)
 2. Separate issues into two categories:
    - **Fixable by you**: Missing guardrails, missing verification commands, structural issues → fix them directly
    - **Requires user input**: Ambiguous requirements, missing context, unclear scope → ask the user
-3. Fix everything you can, ask the user about the rest
-4. Re-run ALL 6 validators on the revised plan (not a subset — this catches regressions)
-5. Each cycle costs one refinement iteration against your budget
+3. Fix in priority order: CRITICAL → HIGH → MEDIUM → LOW
+4. **Budget-aware prioritization**: When the refinement budget drops below 50% remaining, focus exclusively on CRITICAL and HIGH issues. Skip MEDIUM and LOW unless all CRITICAL and HIGH issues are resolved and budget remains.
+5. Re-run ALL 6 validators on the revised plan (not a subset — this catches regressions)
+6. Each cycle costs one refinement iteration against your budget
 
 ### Step 4: Safety Escalation
 
@@ -78,7 +92,10 @@ When the goal-achievement-auditor identifies issues that require user input:
 
 - Default budget: 5 refinement cycles
 - User can set via `--max-refinements N`
-- If budget exhausted without full PASS: present the plan with explicit warnings listing every unresolved issue and which agent flagged it
+- When budget is at or above 50% remaining: fix all tiers in priority order (CRITICAL → HIGH → MEDIUM → LOW)
+- When budget drops below 50% remaining: prioritize CRITICAL and HIGH exclusively
+- Budget exhausted with unresolved MEDIUM/LOW only: present with explicit warnings listing each unresolved issue, its severity tier, and which agent flagged it
+- CRITICAL or HIGH issues should never remain unresolved (they are mandatory), but if budget is exhausted with unresolved CRITICAL/HIGH: present with BLOCKING warnings and explicitly ask the user whether to proceed
 - On user rejection with feedback: budget resets to 0, but make targeted edits (the skeleton is already built — don't rebuild from scratch)
 
 ### Post-Acceptance
