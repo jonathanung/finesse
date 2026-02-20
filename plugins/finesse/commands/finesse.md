@@ -272,12 +272,13 @@ When the Scope Analysis phase resulted in an accepted decomposition:
 
 ### Validation
 
-Launch ALL 5 validation agents in parallel on the drafted plan using the Task tool. Pass the full plan text in each agent's prompt:
+Launch ALL 6 validation agents in parallel on the drafted plan using the Task tool. Pass the full plan text in each agent's prompt:
 1. **clarity-checker** — requirements unambiguous for autonomous agent
 2. **completion-validator** — binary criteria, explicit promise
 3. **scope-safety-reviewer** — scope, guardrails, safety
 4. **phase-structure-analyzer** — cold start, phases, verification commands
 5. **failure-mode-auditor** — stuck-state recovery, anti-thrashing
+6. **goal-achievement-auditor** — goal achievement, truth coverage, dependency flow
 
 All agents use the same verdict vocabulary: `PASS`, `FAIL`, or `NEEDS_REWORK`.
 
@@ -286,11 +287,11 @@ All agents use the same verdict vocabulary: `PASS`, `FAIL`, or `NEEDS_REWORK`.
 - **Any FAIL**: Critical gaps exist. Fix before presenting. Issues requiring user input → ask the user. Issues fixable by you → fix directly.
 - **Any NEEDS_REWORK**: Fix if within refinement budget.
 
-Each fix-and-revalidate cycle costs one refinement iteration against your `--max-refinements` budget. When revalidating after fixes, re-run ALL 5 agents to catch regressions.
+Each fix-and-revalidate cycle costs one refinement iteration against your `--max-refinements` budget. When revalidating after fixes, re-run ALL 6 agents to catch regressions.
 
 If budget exhausted without full PASS: present the plan with explicit warnings listing every unresolved issue and which agent flagged it.
 
-In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 5 validators. A FAIL on any sub-workflow blocks presentation of the entire decomposition.
+In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 6 validators. A FAIL on any sub-workflow blocks presentation of the entire decomposition.
 
 ### Presentation
 
@@ -346,7 +347,7 @@ Note: The presentation is for the user to review. The actual files written on ac
 **If REJECTED with feedback:**
 1. Reset refinement counter to 0
 2. Make **targeted edits** to the existing plan — do NOT rebuild from scratch
-3. Re-validate ALL 5 agents on the revised plan
+3. Re-validate ALL 6 agents on the revised plan
 4. Re-present. Repeat until accepted.
 
 **If REJECTED without feedback:**

@@ -10,13 +10,14 @@ During a Finesse planning session, you MUST validate every drafted plan before p
 
 ### Step 1: Launch All Validators in Parallel
 
-Use the Task tool to launch ALL FIVE agents simultaneously in a single message. Pass the full drafted plan text to each agent in their prompt:
+Use the Task tool to launch ALL SIX agents simultaneously in a single message. Pass the full drafted plan text to each agent in their prompt:
 
 1. **clarity-checker** — Are requirements specific enough for an autonomous agent with no ability to ask questions?
 2. **completion-validator** — Are completion criteria binary, explicit, and unambiguous?
 3. **scope-safety-reviewer** — Are scope constraints, guardrails, and safety measures in place?
 4. **phase-structure-analyzer** — Are phases ordered with verification commands and a cold start paragraph?
 5. **failure-mode-auditor** — Are stuck-state recovery, anti-thrashing rules, and failure handling present?
+6. **goal-achievement-auditor** — Does the prompt actually achieve the stated goal? Are all observable truths covered by phases and verified by completion criteria?
 
 Each agent returns a verdict: `PASS`, `FAIL`, or `NEEDS_REWORK`.
 
@@ -24,13 +25,13 @@ Each agent returns a verdict: `PASS`, `FAIL`, or `NEEDS_REWORK`.
 
 When the Scope Analysis phase resulted in a decomposition with multiple sub-workflows:
 
-**Per-sub-workflow validation**: Launch all 5 validators on each sub-workflow's prompt independently. Process sub-workflows sequentially (to manage context), not all at once.
+**Per-sub-workflow validation**: Launch all 6 validators on each sub-workflow's prompt independently. Process sub-workflows sequentially (to manage context), not all at once.
 
 **Cross-sub-workflow checks**: After individual validation passes, verify:
 1. No file scope overlaps between parallel (same-wave) sub-workflow prompts
 2. Wave 2+ sub-workflows correctly assume wave 1 outputs as existing state (not as things to build)
 
-**Verdict aggregation**: All sub-workflow prompts must pass all 5 validators. A FAIL on any single sub-workflow blocks the entire plan.
+**Verdict aggregation**: All sub-workflow prompts must pass all 6 validators. A FAIL on any single sub-workflow blocks the entire plan.
 
 **Refinement budget**: Applies per sub-workflow independently. Each sub-workflow can use up to `--max-refinements` cycles.
 
@@ -49,7 +50,7 @@ For FAIL or NEEDS_REWORK verdicts:
    - **Fixable by you**: Missing guardrails, missing verification commands, structural issues → fix them directly
    - **Requires user input**: Ambiguous requirements, missing context, unclear scope → ask the user
 3. Fix everything you can, ask the user about the rest
-4. Re-run ALL 5 validators on the revised plan (not a subset — this catches regressions)
+4. Re-run ALL 6 validators on the revised plan (not a subset — this catches regressions)
 5. Each cycle costs one refinement iteration against your budget
 
 ### Step 4: Safety Escalation
@@ -64,6 +65,14 @@ When the clarity-checker (or any agent) identifies ambiguities that require user
 - Wait for answers before revising the plan
 - Incorporate answers and re-validate
 - This is consistent with the core philosophy: never infer when you can ask. Validation ambiguities are just as important as planning ambiguities.
+
+### Step 6: Goal Achievement Escalation
+
+When the goal-achievement-auditor identifies issues that require user input:
+- If the cold start paragraph has no extractable goal: ask the user to clarify the intended end-state of the ralph-loop. What should be different when done?
+- If derived truths have no covering phases: present the uncovered truths and ask whether they should be added as new phases or whether the truths are incorrect
+- If completion criteria don't verify all truths: present the gaps and suggest specific additions to the promise section
+- Do NOT invent phases or modify the goal yourself — surface the gaps for user decision
 
 ### Refinement Budget
 

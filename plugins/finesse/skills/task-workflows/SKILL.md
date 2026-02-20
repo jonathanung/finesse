@@ -195,7 +195,7 @@ Determine ralph-loop `--max-iterations` with reasoning:
 
 ### Phase 7: Validation
 
-Launch all 5 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
+Launch all 6 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
 
 ### Phase 8: Presentation
 
@@ -754,7 +754,7 @@ Ralph-loop iterations:
 
 ### Phase 7: Validation
 
-Launch all 5 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
+Launch all 6 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
 
 ### Phase 8: Presentation
 
@@ -776,6 +776,6 @@ When the Scope Analysis phase results in an accepted decomposition, the remainin
 
 **Context budget**: Each sub-workflow gets its own context budget estimate (since each runs in its own context window). If any sub-workflow exceeds critical pressure (>80%), the re-route fires for that specific sub-workflow. An aggregate summary of all sub-workflow budgets is included in `execution-graph.md`.
 
-**Validation**: Each sub-workflow's prompt is validated independently by all 5 standard validation agents.
+**Validation**: Each sub-workflow's prompt is validated independently by all 6 standard validation agents.
 
 **Presentation**: All sub-workflows are presented together with the execution graph. The user accepts or rejects the entire decomposition as a unit.

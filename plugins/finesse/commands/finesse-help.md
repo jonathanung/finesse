@@ -74,7 +74,7 @@ Resume an interrupted Finesse planning session from a working file.
 4. **Clarifying questions** — Finesse asks you to resolve ambiguities (never guesses)
 5. **UAT checkpoints** — At strategic phases, Finesse presents its work and asks you to accept, provide feedback, make specific changes, or skip remaining checkpoints
 6. **Plan construction** — Builds a structured ralph-loop prompt with cold start, phases, verification commands, guardrails. Optionally includes subagent spawning instructions for parallel execution.
-7. **Parallel validation** — 5 agents review the plan simultaneously
+7. **Parallel validation** — 6 agents review the plan simultaneously
 8. **Refinement** — Issues fixed automatically or flagged for your input
 9. **Presentation** — Plan shown for your approval
 10. **On acceptance** — Three files saved to `ralph-plans/` (prompt, promise, metadata), you get the ralph-loop command
@@ -107,6 +107,7 @@ Discovery phases (marked `(deep)`) always require full confirmation, even if UAT
 | scope-safety-reviewer | Are scope constraints and safety guardrails in place? |
 | phase-structure-analyzer | Are phases ordered with verification commands and cold start? |
 | failure-mode-auditor | Are stuck-state recovery and anti-thrashing rules present? |
+| goal-achievement-auditor | Does the prompt achieve the stated goal? Truth coverage + dependency flow |
 
 ## Output
 
@@ -138,7 +139,7 @@ Single-workflow tasks still use the flat `ralph-plans/<name>.md` format.
 If you reject a plan with feedback:
 - Finesse's refinement counter resets
 - Subsequent passes make targeted edits (the skeleton is already built)
-- All 5 validators re-run on the revised plan
+- All 6 validators re-run on the revised plan
 - You see the revised plan for another round of approval
 
 ## Resuming Sessions
