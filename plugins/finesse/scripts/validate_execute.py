@@ -61,7 +61,7 @@ def check_files_exist():
         "scripts/finesse_execute.py": SCRIPTS_DIR / "finesse_execute.py",
         "hooks/stop_hook.py": HOOKS_DIR / "stop_hook.py",
         "hooks/hooks.json": HOOKS_DIR / "hooks.json",
-        "commands/finesse-execute.md": COMMANDS_DIR / "finesse-execute.md",
+        "commands/finesse:finesse-execute.md": COMMANDS_DIR / "finesse-execute.md",
         "commands/cancel-finesse-execute.md": COMMANDS_DIR
         / "cancel-finesse-execute.md",
     }

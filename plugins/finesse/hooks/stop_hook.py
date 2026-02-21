@@ -213,7 +213,7 @@ def main():
         error_cleanup(
             f"State file corrupted: 'iteration' is not a number "
             f"(got: '{frontmatter.get('iteration', '')}'). "
-            "Run /finesse-execute again to start fresh."
+            "Run /finesse:finesse-execute again to start fresh."
         )
         return
 
@@ -224,7 +224,7 @@ def main():
         error_cleanup(
             f"State file corrupted: 'max_iterations' is not a number "
             f"(got: '{frontmatter.get('max_iterations', '')}'). "
-            "Run /finesse-execute again to start fresh."
+            "Run /finesse:finesse-execute again to start fresh."
         )
         return
 

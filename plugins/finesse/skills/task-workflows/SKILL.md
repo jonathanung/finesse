@@ -581,8 +581,8 @@ When the Scope Analysis phase results in an accepted decomposition, the remainin
 
 ```
 ## Wave 1 (run in parallel)
-/finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
+/finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
 
 ## Wave 2 (run after Wave 1 completes)
-/finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
+/finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
 ```

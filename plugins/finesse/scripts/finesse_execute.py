@@ -207,11 +207,11 @@ def resolve_plan_files(args) -> tuple:
         print("", file=sys.stderr)
         print("  Provide a prompt inline or via --prompt-file:", file=sys.stderr)
         print(
-            '    /finesse-execute "Build a REST API" --max-iterations 15',
+            '    /finesse:finesse-execute "Build a REST API" --max-iterations 15',
             file=sys.stderr,
         )
         print(
-            "    /finesse-execute --prompt-file ralph-plans/my-plan.md",
+            "    /finesse:finesse-execute --prompt-file ralph-plans/my-plan.md",
             file=sys.stderr,
         )
         sys.exit(1)

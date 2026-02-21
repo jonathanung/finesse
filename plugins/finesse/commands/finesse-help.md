@@ -113,7 +113,7 @@ Perform post-execution retrospective on a completed ralph-loop run.
 /finesse-retro
 ```
 
-### /finesse-execute [ARGS]
+### /finesse:finesse-execute [ARGS]
 
 Launch a Finesse-managed ralph loop from a plan or inline prompt.
 
@@ -126,8 +126,8 @@ Launch a Finesse-managed ralph loop from a plan or inline prompt.
 
 **Usage:**
 ```
-/finesse-execute --prompt-file ralph-plans/fix-token-refresh.md --completion-promise-file ralph-plans/fix-token-refresh-promise.txt --max-iterations 8
-/finesse-execute
+/finesse:finesse-execute --prompt-file ralph-plans/fix-token-refresh.md --completion-promise-file ralph-plans/fix-token-refresh-promise.txt --max-iterations 8
+/finesse:finesse-execute
 ```
 
 ### /cancel-finesse-execute
@@ -188,7 +188,7 @@ Discovery phases (marked `(deep)`) always require full confirmation, even if UAT
 ## Output
 
 Accepted plans are saved as three files in `ralph-plans/`:
-- `<name>.md` — prompt text only (referenced by `/finesse-execute` via `--prompt-file`)
+- `<name>.md` — prompt text only (referenced by `/finesse:finesse-execute` via `--prompt-file`)
 - `<name>-promise.txt` — completion promise text only
 - `<name>-plan.md` — metadata: task type, approach, rationale, iteration reasoning
 
@@ -196,7 +196,7 @@ For multi-workflow tasks, files are organized under `ralph-plans/<session-name>/
 
 You get a ready-to-run command (or can execute directly):
 ```
-/finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>
+/finesse:finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>
 ```
 
 ## Multi-Workflow Output

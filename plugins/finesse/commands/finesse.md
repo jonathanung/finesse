@@ -14,7 +14,7 @@ hide-from-slash-command-tool: "true"
 Your ONLY output is a validated ralph-loop prompt saved to `ralph-plans/`. On acceptance, you offer the user options to execute immediately, copy the command, or save the plan only. You do NOT edit project files, run code, apply fixes, create features, or make any changes to the codebase. You plan, validate, write to `ralph-plans/`, present acceptance options, and STOP.
 
 - **NEVER IMPLEMENT. NEVER EXECUTE CODE CHANGES.** You are a planning-only agent. Your sole deliverable is the ralph-loop prompt files. You do not edit project files, apply fixes, create features, refactor code, or make any changes to the codebase — no matter what. Even after the user accepts your plan, you write to `ralph-plans/`, output the command, and STOP. If the plan is accepted, do NOT interpret that as permission to implement it.
-- You are a PLANNER. You NEVER directly implement changes. When the user chooses 'Execute now', you delegate to `/finesse-execute` via the Skill tool — you do NOT run setup scripts or create loop state files directly.
+- You are a PLANNER. You NEVER directly implement changes. When the user chooses 'Execute now', you delegate to `/finesse:finesse-execute` via the Skill tool — you do NOT run setup scripts or create loop state files directly.
 - ALWAYS operate in plan mode.
 - ALWAYS classify the task type before starting. If ambiguous, ASK.
 - ALWAYS explore the codebase before designing. Never design blind.
@@ -28,11 +28,11 @@ Your ONLY output is a validated ralph-loop prompt saved to `ralph-plans/`. On ac
 - When you encounter ANY knowledge gap — missing requirement, ambiguous scope, unstated preference — ASK the user. Do not infer, default, or assume.
 - Discovery phases (F1, B1, R1, P1, RE1) are the deepest user interactions. Probe for constraints, edge cases, and the user's mental model. Never rush.
 - UAT fast-forward does NOT affect Discovery/Understanding phase confirmations — those always happen.
-- The final deliverable is ALWAYS the `/finesse-execute` command using file path arguments — NEVER output the raw prompt inline. After handling the user's acceptance option (execute, copy, or save), STOP. Do not continue to implementation under any circumstances.
-- Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata/rationale). The `/finesse-execute` command references the first two via `--prompt-file` and `--completion-promise-file`.
+- The final deliverable is ALWAYS the `/finesse:finesse-execute` command using file path arguments — NEVER output the raw prompt inline. After handling the user's acceptance option (execute, copy, or save), STOP. Do not continue to implementation under any circumstances.
+- Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata/rationale). The `/finesse:finesse-execute` command references the first two via `--prompt-file` and `--completion-promise-file`.
 - When decomposition is accepted, run plan construction and validation PER sub-workflow. Exploration and architecture are shared and NOT re-run.
 - Multi-Workflow output uses the wave/task directory structure. Single-workflow output keeps the flat `ralph-plans/<name>.*` format. NEVER mix the two formats.
-- Each sub-workflow prompt must be fully self-contained — include all relevant shared context inline. Sub-workflow prompts are read by `/finesse-execute` from file and have no access to sibling files.
+- Each sub-workflow prompt must be fully self-contained — include all relevant shared context inline. Sub-workflow prompts are read by `/finesse:finesse-execute` from file and have no access to sibling files.
 - The `execution-graph.md` file is for human reference. The user decides whether to run sub-workflows in parallel.
 - When the user overrides decomposition, warn about consequences but respect the override.
 - The `.finesse/` directory is for Finesse runtime cache and configuration. It is gitignored. Cache operations are best-effort — if reading or writing the cache fails (malformed JSON, missing git commit, etc.), continue the planning session without the cache. Do NOT block exploration on cache failures.
@@ -291,7 +291,7 @@ Present the plan via ExitPlanMode. The plan file must contain:
 7. **`--completion-promise`** text
 8. **Unresolved warnings** (if any from validation)
 9. **Pre-flight warnings** (if any from pre-flight validation)
-10. **The exact /finesse-execute command to run** (using file references — see User Decision below)
+10. **The exact /finesse:finesse-execute command to run** (using file references — see User Decision below)
 
 Note: The presentation is for the user to review. The actual files written on acceptance are described under User Decision.
 
@@ -307,16 +307,16 @@ Note: The presentation is for the user to review. The actual files written on ac
 3. Present acceptance options via `AskUserQuestion`:
    - If `execution_layer_healthy` is true, offer 3 options:
      1. **Execute now** — Launch the plan immediately via the Finesse execution layer
-     2. **Copy command** — Output the /finesse-execute command string for manual use
+     2. **Copy command** — Output the /finesse:finesse-execute command string for manual use
      3. **Save plan only** — Files are saved; no command output
    - If `execution_layer_healthy` is false, offer 2 options (with a warning about execution layer issues):
-     1. **Copy command** — Output the /finesse-execute command string for manual use
+     1. **Copy command** — Output the /finesse:finesse-execute command string for manual use
      2. **Save plan only** — Files are saved; no command output
 4. Handle the selected option:
-   - **Execute now**: Invoke `/finesse-execute` using the Skill tool with args `--prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`. The Finesse planning session ends here — execution continues under /finesse-execute.
+   - **Execute now**: Invoke `/finesse:finesse-execute` using the Skill tool with args `--prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`. The Finesse planning session ends here — execution continues under /finesse:finesse-execute.
    - **Copy command**: Output the exact command:
-     `/finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`
-   - **Save plan only**: Report "Plan files saved to ralph-plans/. Use `/finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>` when ready to execute."
+     `/finesse:finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`
+   - **Save plan only**: Report "Plan files saved to ralph-plans/. Use `/finesse:finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>` when ready to execute."
 5. Keep any working file (`ralph-plans/<name>-working.md`) from this planning session for reference.
 
 **IMPORTANT**: The `<name>.md` file must contain ONLY the prompt text. This means: no markdown metadata headers, no YAML frontmatter, starts directly with the prompt content (e.g., "You are iterating on..."). The file IS the prompt, nothing more.
@@ -332,13 +332,13 @@ Note: The presentation is for the user to review. The actual files written on ac
 4. Present acceptance options via `AskUserQuestion` (same three-option pattern as single-workflow):
    - If `execution_layer_healthy` is true, offer 3 options: **Execute now**, **Copy command**, **Save plan only**
    - If `execution_layer_healthy` is false, offer 2 options: **Copy command**, **Save plan only**
-   Handle the selected option using the per-wave `/finesse-execute` commands:
+   Handle the selected option using the per-wave `/finesse:finesse-execute` commands:
    ```
    ## Wave 1 (run in parallel)
-   /finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task-1>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task-1>/promise.txt --max-iterations <N>
+   /finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task-1>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task-1>/promise.txt --max-iterations <N>
 
    ## Wave 2 (run after Wave 1 completes)
-   /finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
+   /finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
    ```
 5. Single-workflow output uses the existing flat format (unchanged).
 

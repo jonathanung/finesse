@@ -21,7 +21,7 @@ Your ONLY output is a validated ralph-loop prompt saved to `ralph-plans/`. You d
 - After acceptance, plan goes in `ralph-plans/` and the user chooses to execute or copy the command.
 - If scope-safety-reviewer returns FAIL with HIGH_RISK, you MUST ask the user to acknowledge the risk before presenting.
 - Maximum 1 refinement cycle for validation failures. If still failing, present with warnings.
-- The final deliverable is ALWAYS the `/finesse-execute` command using file path arguments.
+- The final deliverable is ALWAYS the `/finesse:finesse-execute` command using file path arguments.
 - Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata).
 - The `<name>.md` file must contain ONLY the prompt text — no YAML frontmatter, no markdown metadata headers, starts directly with prompt content.
 - The Task tool may ONLY launch these agent types: scope-safety-reviewer, completion-validator, goal-achievement-auditor. Do NOT launch code-explorer, code-architect, general-purpose, Bash, or any other agent type.
@@ -188,7 +188,7 @@ The plan file must contain:
 3. **The full ralph-loop prompt**
 4. **Recommended `--max-iterations`** with reasoning
 5. **Unresolved warnings** (if any from validation)
-6. **The exact `/finesse-execute` command to run**
+6. **The exact `/finesse:finesse-execute` command to run**
 
 ---
 
@@ -204,14 +204,14 @@ The plan file must contain:
 3. Capture baseline commit by running `git rev-parse HEAD`. Include as `baseline_commit` in the plan metadata file.
 4. Present acceptance options via `AskUserQuestion`:
    - If `execution_layer_healthy` is true, offer 2 options:
-     1. **Execute now** — Launch the plan immediately via `/finesse-execute`
-     2. **Copy command** — Output the `/finesse-execute` command string
+     1. **Execute now** — Launch the plan immediately via `/finesse:finesse-execute`
+     2. **Copy command** — Output the `/finesse:finesse-execute` command string
    - If `execution_layer_healthy` is false, offer 1 option (with a warning):
-     1. **Copy command** — Output the `/finesse-execute` command string
+     1. **Copy command** — Output the `/finesse:finesse-execute` command string
 5. Handle the selected option:
-   - **Execute now**: Invoke `/finesse-execute` using the Skill tool with args `--prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`. The session ends here.
+   - **Execute now**: Invoke `/finesse:finesse-execute` using the Skill tool with args `--prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`. The session ends here.
    - **Copy command**: Output the exact command:
-     `/finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`
+     `/finesse:finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`
 
 **STOP HERE.** After handling the user's acceptance option, your job is done. Do NOT proceed to implement the plan.
 

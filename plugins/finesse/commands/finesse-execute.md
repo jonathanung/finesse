@@ -48,7 +48,7 @@ If `$ARGUMENTS` is empty or blank:
 4. If exactly one multi-workflow session found:
    - Read `execution-graph.md` to show the wave structure
    - Present wave-by-wave summary
-   - Say "Multi-workflow execution is not yet supported by /finesse-execute. Use the commands from execution-graph.md to run each sub-workflow manually."
+   - Say "Multi-workflow execution is not yet supported by /finesse:finesse-execute. Use the commands from execution-graph.md to run each sub-workflow manually."
    - Stop.
 
 5. If multiple plans found:
@@ -112,14 +112,14 @@ This data is consumed by `/finesse-retro` (when implemented) to generate post-ex
 
 ```
 # Auto-detect the most recent plan from ralph-plans/
-/finesse-execute
+/finesse:finesse-execute
 
 # Execute a specific plan file
-/finesse-execute --prompt-file ralph-plans/fix-token-refresh-auth.md --completion-promise-file ralph-plans/fix-token-refresh-auth-promise.txt --max-iterations 8
+/finesse:finesse-execute --prompt-file ralph-plans/fix-token-refresh-auth.md --completion-promise-file ralph-plans/fix-token-refresh-auth-promise.txt --max-iterations 8
 
 # Inline prompt (bypass /finesse planning, useful for simple tasks)
-/finesse-execute "Fix the linting errors in src/utils/" --max-iterations 5 --completion-promise "COMPLETE"
+/finesse:finesse-execute "Fix the linting errors in src/utils/" --max-iterations 5 --completion-promise "COMPLETE"
 
 # Multi-workflow sub-task
-/finesse-execute --prompt-file ralph-plans/build-todo-api/wave-1/auth-endpoints/prompt.md --completion-promise-file ralph-plans/build-todo-api/wave-1/auth-endpoints/promise.txt --max-iterations 12
+/finesse:finesse-execute --prompt-file ralph-plans/build-todo-api/wave-1/auth-endpoints/prompt.md --completion-promise-file ralph-plans/build-todo-api/wave-1/auth-endpoints/promise.txt --max-iterations 12
 ```

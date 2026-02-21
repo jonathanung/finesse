@@ -1,8 +1,8 @@
 # Finesse
 
-A Claude Code plugin that turns vague task descriptions into validated, ready-to-run [ralph-loop](https://github.com/anthropics/claude-code-plugins) prompts — the kind that converge instead of thrashing. Describe what you want in plain English; Finesse plans it, validates it with 5 parallel agents, and hands you the command.
+A Claude Code plugin that turns vague task descriptions into validated, ready-to-run prompts for iterative autonomous development — the kind that converge instead of thrashing. Describe what you want in plain English; Finesse plans it, validates it with parallel agents, and executes it.
 
-> **What is ralph-loop?** Ralph-loop is a Claude Code plugin that repeatedly invokes Claude to work on a task across multiple iterations until a completion condition is met. Each iteration is stateless — the agent starts fresh with only the prompt and the current state of the codebase. This makes prompt quality critical: a vague requirement becomes an infinite loop, a missing guardrail lets the agent delete your tests, and an ambiguous "done" condition means it either exits too early or never stops. Good prompts need [10 specific attributes](#the-10-mandatory-prompt-attributes) that Finesse encodes automatically.
+> **How does iterative execution work?** Finesse ships its own execution layer (based on the [ralph-loop](https://github.com/anthropics/claude-code-plugins) plugin) that repeatedly invokes Claude to work on a task across multiple iterations until a completion condition is met. Each iteration is stateless — the agent starts fresh with only the prompt and the current state of the codebase. This makes prompt quality critical: a vague requirement becomes an infinite loop, a missing guardrail lets the agent delete your tests, and an ambiguous "done" condition means it either exits too early or never stops. Good prompts need [10 specific attributes](#the-10-mandatory-prompt-attributes) that Finesse encodes automatically.
 
 ## How It Works
 
@@ -10,7 +10,7 @@ A Claude Code plugin that turns vague task descriptions into validated, ready-to
 /finesse:finesse Build a REST API for managing todos with authentication
 ```
 
-Finesse detects your task type, explores your codebase, asks you clarifying questions, designs implementation approaches, constructs a ralph-loop prompt, validates it with 5 specialized agents, and presents the result for your approval.
+Finesse detects your task type, explores your codebase, asks you clarifying questions, designs implementation approaches, constructs the prompt, validates it with specialized agents, and presents the result for your approval — then executes it.
 
 ```
 You → /finesse:finesse "vague idea"
@@ -25,13 +25,13 @@ You → /finesse:finesse "vague idea"
        ↓
   Prompt Construction (cold start, ordered phases, verification commands, guardrails)
        ↓
-  Parallel Validation (5 agents in parallel)
+  Parallel Validation (6 agents in parallel)
        ↓
   Refinement (auto-fix or ask you)
        ↓
   Presentation  ←  you approve or reject
        ↓
-  On Accept → ralph-plans/ output + copy-paste command(s)
+  On Accept → ralph-plans/ output + execute or copy command(s)
 ```
 
 ## Installation
@@ -44,21 +44,16 @@ You → /finesse:finesse "vague idea"
 /plugin install finesse @ jonathanung-finesse
 ```
 
-**Prerequisite:** The ralph-loop plugin must also be installed to run the generated prompts:
-
-```bash
-/plugin marketplace add anthropics/claude-plugins-official
-/plugin install ralph-loop @ claude-plugins-official
-```
+Finesse ships its own execution layer — no additional plugins are required.
 
 ## Commands
 
 ### `/finesse:finesse <TASK> [--max-refinements N]`
 
-Plan a ralph-loop prompt for any development task.
+Plan and validate a prompt for any development task.
 
 - `TASK` — What you want to do. Can be vague — Finesse will clarify.
-- `--max-refinements N` — Max planning refinement cycles (default: 5). This is Finesse's internal planning budget, **not** the ralph-loop iteration count. Finesse determines the ralph-loop iteration count automatically based on task scope.
+- `--max-refinements N` — Max planning refinement cycles (default: 5). This is Finesse's internal planning budget, **not** the execution iteration count. Finesse determines the iteration count automatically based on task scope.
 
 ```bash
 # Features
@@ -92,13 +87,7 @@ Plan a ralph-loop prompt for any development task.
 For `/finesse:finesse Fix the token refresh bug in auth.ts`, Finesse produces something like:
 
 ```bash
-/ralph-loop:ralph-loop $(cat ralph-plans/fix-token-refresh-auth.md) --completion-promise "$(cat ralph-plans/fix-token-refresh-auth-promise.txt)" --max-iterations=8
-```
-
-Note that in order for this to work, you will need to be running claude with `--dangerously-skip-permissions`. This is because a ralph loop works best in this mode; if desired, you can always get an agent to fetch the file contents to construct the files according to the ralph-loop command spec.
-
-```bash
-/ralph-loop:ralph-loop <PROMPT> --completion-promise "<PROMISE>" --max-iterations=<N>
+/finesse:finesse-execute --prompt-file ralph-plans/fix-token-refresh-auth.md --completion-promise-file ralph-plans/fix-token-refresh-auth-promise.txt --max-iterations 8
 ```
 
 Finesse saves three files:
@@ -106,9 +95,21 @@ Finesse saves three files:
 - `ralph-plans/fix-token-refresh-auth-promise.txt` — the completion promise text
 - `ralph-plans/fix-token-refresh-auth-plan.md` — metadata: task type, codebase context, chosen approach with rationale, iteration reasoning
 
-### `/cancel-finesse`
+### `/finesse:finesse-execute [--prompt-file PATH] [--completion-promise-file PATH] [--max-iterations N] [PROMPT...]`
+
+Execute a plan using Finesse's built-in execution layer. Can auto-detect plans from `ralph-plans/`, take explicit file arguments, or accept an inline prompt.
+
+### `/finesse:finesse-mini <TASK>`
+
+Lightweight single-pass alternative to `/finesse` for micro-tasks (fix a typo, add a missing import, rename a variable across a few files). Skips the full multi-phase workflow — explores 1-5 files, constructs a prompt, validates with 3 agents, and presents.
+
+### `/finesse:cancel-finesse`
 
 Cancel the current planning session without saving.
+
+### `/finesse:cancel-finesse-execute`
+
+Cancel an active execution loop.
 
 ### `/finesse:finesse-help`
 
@@ -142,7 +143,7 @@ You don't need to know these to use Finesse — it handles them automatically. T
 | 9 | **Conservative iteration limit** | Right-sized by task type and scope, with reasoning |
 | 10 | **Zero ambiguity about "done"** | Anti-premature-exit language, no room to rationalize partial completion |
 
-> **What are `<promise>` tags?** They are ralph-loop's mechanism for detecting completion. When the agent outputs a `<promise>` tag matching the `--completion-promise` text, ralph-loop stops iterating.
+> **What are `<promise>` tags?** They are the execution layer's mechanism for detecting completion. When the agent outputs a `<promise>` tag matching the completion promise text, the loop stops iterating.
 
 ## Agents
 
@@ -181,12 +182,12 @@ When you accept a plan, Finesse:
 **Single-workflow tasks:**
 1. Creates `ralph-plans/` in your workspace root (if it doesn't exist)
 2. Saves three files:
-   - `ralph-plans/<name>.md` — the prompt text only (used by the command via `$(cat ...)`)
+   - `ralph-plans/<name>.md` — the prompt text only
    - `ralph-plans/<name>-promise.txt` — the completion promise text only
    - `ralph-plans/<name>-plan.md` — human-readable metadata: task type, codebase context, chosen approach, rationale, iteration reasoning, unresolved warnings
 3. Outputs the exact command:
    ```
-   /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
+   /finesse:finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>
    ```
 
 **Multi-workflow tasks (decomposed):**
@@ -196,13 +197,13 @@ When you accept a plan, Finesse:
 4. Outputs commands grouped by wave:
    ```
    ## Wave 1 (run in parallel)
-   /ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-1/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-1/<task>/promise.txt)" --max-iterations=<N>
+   /finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
 
    ## Wave 2 (run after Wave 1 completes)
-   /ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-2/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-2/<task>/promise.txt)" --max-iterations=<N>
+   /finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
    ```
 
-The prompt file contains only the raw prompt so that `$(cat ...)` shell expansion works correctly. Metadata and rationale live in the separate `-plan.md` (or `plan.md`) file.
+Metadata and rationale live in the separate `-plan.md` (or `plan.md`) file.
 
 ## Plan Rejection & Iteration
 
@@ -215,7 +216,7 @@ You can reject and refine as many times as needed.
 
 ## Iteration Count Guidance
 
-Finesse automatically sizes the ralph-loop `--max-iterations` based on task type and scope:
+Finesse automatically sizes `--max-iterations` based on task type and scope:
 
 | Task Type | Scope | Iterations |
 |---|---|---|
@@ -238,12 +239,12 @@ Finesse automatically sizes the ralph-loop `--max-iterations` based on task type
 | Research | Medium (3-5 sections) | 8-14 |
 | Research | Broad (6+ sections) | 14-20 |
 
-If a task needs more than 25 iterations, Finesse automatically proposes decomposing it into multiple independent sub-workflows during the Scope Analysis phase. Each sub-workflow runs as its own ralph-loop with a right-sized iteration count.
+If a task needs more than 25 iterations, Finesse automatically proposes decomposing it into multiple independent sub-workflows during the Scope Analysis phase. Each sub-workflow runs with its own right-sized iteration count.
 
 ## When to Use Finesse
 
 **Use Finesse when:**
-- You want to run a task autonomously via ralph-loop
+- You want to run a task autonomously with iterative execution
 - The task requires architectural decisions
 - The bug's root cause isn't obvious
 - The refactor touches many files
@@ -251,12 +252,11 @@ If a task needs more than 25 iterations, Finesse automatically proposes decompos
 - You want a structured research spike, feasibility study, or architecture comparison
 
 **Skip Finesse when:**
-- You already have a well-structured ralph-loop prompt
-- The task is trivial (one file, obvious change)
+- You already have a well-structured prompt
+- The task is trivial (one file, obvious change) - use `/finesse:finesse:mini` instead
 
 ## Limitations
 
-- Finesse plans but does not execute — you need ralph-loop installed to run the output.
 - Planning uses multiple sub-agents, which consumes more tokens than a simple prompt. Budget accordingly for complex tasks.
 - Finesse works best with codebases it can explore. For greenfield projects with no existing code, provide more detail in your task description.
 
@@ -265,12 +265,11 @@ If a task needs more than 25 iterations, Finesse automatically proposes decompos
 ```bash
 /plugin marketplace add jonathanung/finesse
 /plugin install finesse @ jonathanung-finesse
-/plugin marketplace add anthropics/claude-plugins-official
-/plugin install ralph-loop @ claude-plugins-official
-/finesse <describe any task>
+/finesse:finesse <describe any task> # or
+/finesse:finesse-mini <describe a small task>
 ```
 
-Finesse handles the rest. Plans are saved to `ralph-plans/` and the ralph-loop command is ready to copy-paste.
+Finesse handles the rest. Plans are saved to `ralph-plans/` and ready to execute.
 
 ## License
 
