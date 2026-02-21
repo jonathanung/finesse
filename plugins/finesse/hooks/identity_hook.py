@@ -11,7 +11,6 @@ approves the invocation.
 
 import json
 import os
-import re
 import sys
 import time
 from pathlib import Path
@@ -29,7 +28,10 @@ PLANNING_SKILLS = {
 }
 
 CHECKPOINT_FILE = ".finesse/.identity-checkpoint"
+SESSION_MARKER = ".finesse/.planning-session"
 CHECKPOINT_TTL = 30  # seconds
+
+LOG_PREFIX = "[finesse:identity]"
 
 # Resolve identity file relative to this hook's location (plugin root)
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
@@ -82,6 +84,17 @@ def clear_checkpoint():
         pass
 
 
+def write_session_marker():
+    """Write a session marker so the phase-gate hook knows a finesse session is active."""
+    os.makedirs(os.path.dirname(SESSION_MARKER), exist_ok=True)
+    Path(SESSION_MARKER).write_text(str(time.time()))
+
+
+def log(msg: str):
+    """Write a debug log line to stderr."""
+    print(f"{LOG_PREFIX} {msg}", file=sys.stderr)
+
+
 def main():
     # Read hook input from stdin
     try:
@@ -92,6 +105,8 @@ def main():
     tool_name = hook_input.get("tool_name", "")
     tool_input = hook_input.get("tool_input", {})
 
+    log(f"hook fired for tool={tool_name}")
+
     # Only intercept Skill tool calls
     if tool_name != "Skill":
         sys.exit(0)
@@ -99,10 +114,14 @@ def main():
     # Check if this is a planning command
     skill_name = tool_input.get("skill", "")
     if skill_name not in PLANNING_SKILLS:
+        log(f"skipping non-planning skill: {skill_name}")
         sys.exit(0)
+
+    log(f"intercepted planning skill: {skill_name}")
 
     # Check for existing valid checkpoint (retry within TTL)
     if read_checkpoint() is not None:
+        log("checkpoint valid, approving retry")
         clear_checkpoint()
         result = {"decision": "approve"}
         print(json.dumps(result))
@@ -112,16 +131,15 @@ def main():
     identity = read_identity()
     if identity is None:
         # Graceful degradation: approve with warning if identity file unreadable
-        print(
-            f"Warning: Could not read identity file at {IDENTITY_FILE}",
-            file=sys.stderr,
-        )
+        log(f"WARNING: could not read identity file at {IDENTITY_FILE}")
         result = {"decision": "approve"}
         print(json.dumps(result))
         sys.exit(0)
 
-    # Write checkpoint for the retry
+    # Write checkpoint for the retry and session marker for phase-gate hook
     write_checkpoint()
+    write_session_marker()
+    log("first invocation, blocking with identity rules + session marker written")
 
     # Block with identity rules as reason
     reason = (

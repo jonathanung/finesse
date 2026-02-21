@@ -77,6 +77,27 @@ If the task turns out to be bigger than expected (>5 files, >8 estimated iterati
 | Architecture design | Multiple approaches | Skipped |
 | Acceptance options | Execute / Copy / Save | Execute / Copy |
 
+### /finesse-linear <LINEAR_ISSUE> [--max-refinements N] [--mini]
+
+Fetch a Linear issue and plan it with `/finesse` or `/finesse-mini`.
+
+Accepts a Linear issue URL or raw issue ID (e.g., `PF-254`). Fetches all issue data (title, description, labels, priority, assignees, comments, state, git branch, parent/sub-issues, relations) via the Linear MCP server and formats it into a structured task description. Then delegates to `/finesse` (or `/finesse-mini` with `--mini`).
+
+Requires the `linear-server` MCP server to be configured. Run the command without setup to see configuration instructions.
+
+**Arguments:**
+- `LINEAR_ISSUE` — A Linear issue URL or raw issue ID (e.g., `PF-254`, `https://linear.app/team/issue/PF-254/fix-auth-bug`)
+- `--max-refinements N` — Passed through to `/finesse` (ignored with `--mini`)
+- `--mini` — Delegate to `/finesse-mini` instead of `/finesse`
+
+**Usage:**
+```
+/finesse-linear PF-254
+/finesse-linear https://linear.app/myteam/issue/PF-254/fix-the-auth-bug
+/finesse-linear PF-254 --mini
+/finesse-linear PF-254 --max-refinements 3
+```
+
 ### /cancel-finesse
 
 Cancel the current planning session without saving.
@@ -264,6 +285,11 @@ Finesse ships its own execution layer and no longer requires the ralph-wiggum pl
 Use `/finesse-validate-execute` to verify the execution layer is healthy on your machine.
 
 ## When to Use Finesse
+
+### Use `/finesse-linear` when:
+- You have a Linear issue you want to plan
+- You want all issue context (description, comments, sub-issues) pulled automatically
+- Saves manual copy-pasting of issue details into the task description
 
 ### Use `/finesse-mini` for:
 - Micro-tasks touching 1–5 files with obvious changes

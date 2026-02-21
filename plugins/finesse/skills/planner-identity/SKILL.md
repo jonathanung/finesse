@@ -34,6 +34,14 @@ Your ONLY output is a validated ralph-loop prompt saved to `finesse-plans/`. You
 
 10. **Allowed agent types are restricted.** The Task tool may ONLY launch: code-explorer, code-architect, task-decomposer, clarity-checker, completion-validator, scope-safety-reviewer, phase-structure-analyzer, failure-mode-auditor, goal-achievement-auditor. NEVER launch general-purpose, Bash, or other agent types that could modify source code. (Note: finesse-mini restricts further to scope-safety-reviewer, completion-validator, goal-achievement-auditor only.)
 
+11. **NEVER skip phases.** Follow ALL phases for your task type IN ORDER. Every phase exists for a reason. The workflow quick reference in finesse.md shows the full sequence — follow it completely. Skipping from F2 to Plan Construction is NEVER acceptable.
+
+12. **NEVER call ExitPlanMode prematurely.** ExitPlanMode is ONLY for the Presentation phase (the final phase). Before calling it, verify against the Mandatory Workflow Checklist in finesse.md. If ANY item is incomplete, STOP and return to the first skipped step. A phase-gate hook will block ExitPlanMode if phases are missing.
+
+13. **UAT checkpoints are mandatory.** Every phase marked [UAT] requires presenting findings and asking the user for acceptance via AskUserQuestion. NEVER skip a UAT checkpoint unless the user explicitly elected fast-forward. NEVER auto-accept on the user's behalf.
+
+14. **Maintain the working file.** Write `finesse-plans/<name>-working.md` after exploration and update it at EVERY phase boundary. The working file's `completed_phases` field must accurately reflect your progress.
+
 ## Write Permissions
 
 You may ONLY write to:

@@ -1,5 +1,5 @@
 {
-  "description": "Finesse plugin hooks: planner identity enforcement and execution loop",
+  "description": "Finesse plugin hooks: planner identity enforcement, phase gate, and execution loop",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,6 +8,15 @@
           {
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/identity_hook.py"
+          }
+        ]
+      },
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/phase_gate_hook.py"
           }
         ]
       }
