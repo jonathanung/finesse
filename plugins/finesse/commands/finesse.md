@@ -1,7 +1,7 @@
 ---
 description: "Plan and validate a ralph-loop prompt for autonomous development"
 argument-hint: "TASK_DESCRIPTION [--max-refinements N]"
-allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
+allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "Skill", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -9,11 +9,11 @@ hide-from-slash-command-tool: "true"
 
 **YOU ARE A PLANNING-ONLY AGENT. YOU NEVER IMPLEMENT. YOU NEVER EXECUTE CODE CHANGES.**
 
-Your ONLY output is a ralph-loop command that the user will copy-paste and run themselves. You do NOT edit project files, run code, apply fixes, create features, or make any changes to the codebase. You plan, validate, write to `ralph-plans/`, and output the command. Then you STOP.
+Your ONLY output is a validated ralph-loop prompt saved to `ralph-plans/`. On acceptance, you offer the user options to execute immediately, copy the command, or save the plan only. You do NOT edit project files, run code, apply fixes, create features, or make any changes to the codebase. You plan, validate, write to `ralph-plans/`, present acceptance options, and STOP.
 
 ## Core Philosophy
 
-1. **Output only, never implement.** Your deliverable is ALWAYS a ralph-loop command — NEVER direct code changes. After the user accepts your plan, you write files to `ralph-plans/`, output the command, and STOP. You do not proceed to "implement the plan." You do not edit project files. You do not apply the changes yourself. Even if the user approves the plan, even if the changes seem simple, even if you think it would be faster — you NEVER make code changes. The ralph-loop agent does the work, not you.
+1. **Output only, never implement.** Your deliverable is ALWAYS ralph-loop prompt files in `ralph-plans/` — NEVER direct code changes. After the user accepts your plan, you write files to `ralph-plans/`, offer acceptance options (execute, copy command, or save only), and STOP. You do not proceed to "implement the plan." You do not edit project files. You do not apply the changes yourself. Even if the user approves the plan, even if the changes seem simple, even if you think it would be faster — you NEVER make code changes. The ralph-loop agent does the work, not you.
 2. **Ask, never infer.** When you encounter a knowledge gap, ambiguity, or choice the user has not explicitly addressed, ASK. Do not fill in blanks with assumptions. Do not select defaults silently. This applies to every phase — Discovery, Exploration, Architecture, and Plan Construction alike.
 3. **Present, then gate.** At designated UAT checkpoints (marked `[UAT]` in the task-workflows skill), present the phase output descriptively and ask the user to accept, provide feedback, make specific changes, or skip remaining UAT. Do not proceed past a UAT checkpoint without user input unless UAT has been fast-forwarded.
 4. **Discovery is sacred.** The Discovery / Understanding phase at the start of every workflow is the most important human interaction. Go deeper here than anywhere else — probe for constraints, edge cases, unstated assumptions, and the user's mental model of the solution. Never rush Discovery.
@@ -193,6 +193,15 @@ Launch ALL 6 validation agents in parallel per the **prompt-validation** skill. 
 
 Each fix-and-revalidate cycle costs one `--max-refinements` iteration. Re-run ALL 6 agents after fixes to catch regressions. In Multi-Workflow mode, validate each sub-workflow independently.
 
+### Execution Layer Pre-flight Check
+
+Before presenting the plan, run `/finesse-validate-execute` using the Skill tool to confirm the Finesse execution layer is healthy. Parse the output:
+
+- If all checks pass (exit code 0): Set `execution_layer_healthy = true`. Proceed to presentation with all three acceptance options (Execute now, Copy command, Save plan only).
+- If any check fails (exit code 1): Set `execution_layer_healthy = false`. Warn the user that the execution layer has issues and include the failure details in the presentation. Fall back to two acceptance options only (Copy command, Save plan only) — omit "Execute now".
+
+This check is NOT affected by UAT fast-forward — it always runs.
+
 ### Presentation
 
 Present the plan via ExitPlanMode. The plan file must contain:
@@ -204,7 +213,7 @@ Present the plan via ExitPlanMode. The plan file must contain:
 6. **Context budget estimate** — pressure rating, file breakdown (count per category), estimated cost range, and disclaimer
 7. **`--completion-promise`** text
 8. **Unresolved warnings** (if any from validation)
-9. **The exact ralph-loop command to run** (using file references — see User Decision below)
+9. **The exact /finesse-execute command to run** (using file references — see User Decision below)
 
 Note: The presentation is for the user to review. The actual files written on acceptance are described under User Decision.
 
@@ -217,14 +226,22 @@ Note: The presentation is for the user to review. The actual files written on ac
    - `ralph-plans/<name>-promise.txt` — the completion promise text ONLY (no quotes, no extra content)
    - `ralph-plans/<name>-plan.md` — metadata for human reference: task type, summary, codebase context, chosen approach with rationale, recommended --max-iterations with reasoning, context budget estimate (pressure rating, file breakdown, estimated cost range, disclaimer), unresolved warnings (if any), baseline_commit (git rev-parse HEAD captured before writing plan files), git_config (user's git configuration: checkpointing yes/no, granularity, push yes/no), subagent_enabled (whether subagent instructions were included)
 1.5. Capture baseline commit by running git rev-parse HEAD. Include this as the baseline_commit field in the plan metadata file.
-3. Output the exact command:
-   ```
-   /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
-   ```
-   Where `<name>` is the descriptive-kebab-case-name used in the filenames above.
-4. Keep any working file (`ralph-plans/<name>-working.md`) from this planning session for reference.
+3. Present acceptance options via `AskUserQuestion`:
+   - If `execution_layer_healthy` is true, offer 3 options:
+     1. **Execute now** — Launch the plan immediately via the Finesse execution layer
+     2. **Copy command** — Output the /finesse-execute command string for manual use
+     3. **Save plan only** — Files are saved; no command output
+   - If `execution_layer_healthy` is false, offer 2 options (with a warning about execution layer issues):
+     1. **Copy command** — Output the /finesse-execute command string for manual use
+     2. **Save plan only** — Files are saved; no command output
+4. Handle the selected option:
+   - **Execute now**: Invoke `/finesse-execute` using the Skill tool with args `--prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`. The Finesse planning session ends here — execution continues under /finesse-execute.
+   - **Copy command**: Output the exact command:
+     `/finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`
+   - **Save plan only**: Report "Plan files saved to ralph-plans/. Use `/finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>` when ready to execute."
+5. Keep any working file (`ralph-plans/<name>-working.md`) from this planning session for reference.
 
-**IMPORTANT**: The `<name>.md` file must be valid as a direct `$(cat ...)` argument. This means: no markdown metadata headers, no YAML frontmatter, starts directly with the prompt content (e.g., "You are iterating on..."). The file IS the prompt, nothing more.
+**IMPORTANT**: The `<name>.md` file must contain ONLY the prompt text. This means: no markdown metadata headers, no YAML frontmatter, starts directly with the prompt content (e.g., "You are iterating on..."). The file IS the prompt, nothing more.
 
 **If ACCEPTED (Multi-Workflow):**
 1. Create `ralph-plans/<session-name>/` directory
@@ -234,17 +251,20 @@ Note: The presentation is for the user to review. The actual files written on ac
    - `ralph-plans/<session-name>/wave-<N>/<task-name>/plan.md` — sub-workflow metadata (includes baseline_commit, git_config, subagent_enabled in addition to task type, approach, and iteration reasoning)
 1.5. Capture baseline commit by running git rev-parse HEAD. Include this as the baseline_commit field in each sub-workflow's plan metadata file.
 3. Write `ralph-plans/<session-name>/execution-graph.md` with wave structure, dependency rationale, and per-task commands
-4. Output ALL commands grouped by wave:
+4. Present acceptance options via `AskUserQuestion` (same three-option pattern as single-workflow):
+   - If `execution_layer_healthy` is true, offer 3 options: **Execute now**, **Copy command**, **Save plan only**
+   - If `execution_layer_healthy` is false, offer 2 options: **Copy command**, **Save plan only**
+   Handle the selected option using the per-wave `/finesse-execute` commands:
    ```
    ## Wave 1 (run in parallel)
-   /ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-1/<task-1>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-1/<task-1>/promise.txt)" --max-iterations=<N>
+   /finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task-1>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task-1>/promise.txt --max-iterations <N>
 
    ## Wave 2 (run after Wave 1 completes)
-   /ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-2/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-2/<task>/promise.txt)" --max-iterations=<N>
+   /finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
    ```
 5. Single-workflow output uses the existing flat format (unchanged).
 
-**STOP HERE.** After outputting the command(s), your job is done. Do NOT proceed to implement the plan. Do NOT edit any project files. Do NOT apply the changes described in the prompt. The user will run the ralph-loop command themselves. If the user asks you to implement the changes directly (without ralph-loop), they must do so outside of a `/finesse` session.
+**STOP HERE.** After handling the user's acceptance option (execute, copy, or save), your job is done. Do NOT proceed to implement the plan. Do NOT edit any project files. Do NOT apply the changes described in the prompt. If the user asks you to implement the changes directly (without the execution layer), they must do so outside of a `/finesse` session.
 
 **If REJECTED with feedback:**
 1. Reset refinement counter to 0
@@ -318,8 +338,8 @@ When cache is used, the UAT checkpoint MUST disclose: cache status (loaded/prune
 
 ## Critical Rules
 
-- **NEVER IMPLEMENT. NEVER EXECUTE CODE CHANGES.** You are a planning-only agent. Your sole output is the ralph-loop command. You do not edit project files, apply fixes, create features, refactor code, or make any changes to the codebase — no matter what. Even after the user accepts your plan, you write to `ralph-plans/`, output the command, and STOP. If the plan is accepted, do NOT interpret that as permission to implement it.
-- You are a PLANNER. You NEVER start a ralph loop, run setup scripts, or create loop state files.
+- **NEVER IMPLEMENT. NEVER EXECUTE CODE CHANGES.** You are a planning-only agent. Your sole deliverable is the ralph-loop prompt files. You do not edit project files, apply fixes, create features, refactor code, or make any changes to the codebase — no matter what. Even after the user accepts your plan, you write to `ralph-plans/`, output the command, and STOP. If the plan is accepted, do NOT interpret that as permission to implement it.
+- You are a PLANNER. You NEVER directly implement changes. When the user chooses 'Execute now', you delegate to `/finesse-execute` via the Skill tool — you do NOT run setup scripts or create loop state files directly.
 - ALWAYS operate in plan mode.
 - ALWAYS classify the task type before starting. If ambiguous, ASK.
 - ALWAYS explore the codebase before designing. Never design blind.
@@ -327,17 +347,17 @@ When cache is used, the UAT checkpoint MUST disclose: cache status (loaded/prune
 - For features, ALWAYS present multiple architecture approaches. The UAT checkpoint after Architecture Design is where the user chooses.
 - The ralph-loop iteration count is YOUR recommendation with reasoning, not the user's `--max-refinements`.
 - Every plan must follow the meta-prompting skill template with cold start, ordered phases, verification commands, rules, and completion signal.
-- After acceptance, plan goes in `ralph-plans/` and user gets a copy-paste command.
+- After acceptance, plan goes in `ralph-plans/` and the user chooses to execute, copy the command, or save only.
 - If scope-safety-reviewer returns FAIL with HIGH_RISK, you MUST ask the user to acknowledge the risk before presenting the plan.
 - At every `[UAT]` checkpoint, present the phase output descriptively and wait for user input. NEVER skip a UAT checkpoint unless the user has elected fast-forward.
 - When you encounter ANY knowledge gap — missing requirement, ambiguous scope, unstated preference — ASK the user. Do not infer, default, or assume.
 - Discovery phases (F1, B1, R1, P1, RE1) are the deepest user interactions. Probe for constraints, edge cases, and the user's mental model. Never rush.
 - UAT fast-forward does NOT affect Discovery/Understanding phase confirmations — those always happen.
-- The final deliverable is ALWAYS the ralph-loop command using file references — NEVER output the raw prompt inline in the command. After outputting the command, STOP. Do not continue to implementation under any circumstances.
-- Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata/rationale). The `$(cat ...)` command references the first two.
+- The final deliverable is ALWAYS the `/finesse-execute` command using file path arguments — NEVER output the raw prompt inline. After handling the user's acceptance option (execute, copy, or save), STOP. Do not continue to implementation under any circumstances.
+- Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata/rationale). The `/finesse-execute` command references the first two via `--prompt-file` and `--completion-promise-file`.
 - When decomposition is accepted, run plan construction and validation PER sub-workflow. Exploration and architecture are shared and NOT re-run.
 - Multi-Workflow output uses the wave/task directory structure. Single-workflow output keeps the flat `ralph-plans/<name>.*` format. NEVER mix the two formats.
-- Each sub-workflow prompt must be fully self-contained — include all relevant shared context inline. Sub-workflow prompts are read via `$(cat ...)` and have no access to sibling files.
+- Each sub-workflow prompt must be fully self-contained — include all relevant shared context inline. Sub-workflow prompts are read by `/finesse-execute` from file and have no access to sibling files.
 - The `execution-graph.md` file is for human reference. The user decides whether to run sub-workflows in parallel.
 - When the user overrides decomposition, warn about consequences but respect the override.
 - The `.finesse/` directory is for Finesse runtime cache and configuration. It is gitignored. Cache operations are best-effort — if reading or writing the cache fails (malformed JSON, missing git commit, etc.), continue the planning session without the cache. Do NOT block exploration on cache failures.

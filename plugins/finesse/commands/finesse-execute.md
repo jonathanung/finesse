@@ -17,7 +17,7 @@ Parse `$ARGUMENTS` for these patterns:
 
 If `$ARGUMENTS` contains `--prompt-file`, pass all arguments directly to the setup script:
 
-```!
+```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py" $ARGUMENTS
 ```
 
@@ -60,7 +60,7 @@ If `$ARGUMENTS` is empty or blank:
 
 If `$ARGUMENTS` contains text that is NOT a recognized flag, pass all arguments to the setup script:
 
-```!
+```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py" $ARGUMENTS
 ```
 

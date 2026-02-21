@@ -572,3 +572,13 @@ When the Scope Analysis phase results in an accepted decomposition, the remainin
 **Validation**: Each sub-workflow's prompt is validated independently by all 6 standard validation agents.
 
 **Presentation**: All sub-workflows are presented together with the execution graph. The user accepts or rejects the entire decomposition as a unit.
+
+**Per-wave execution commands** — The `execution-graph.md` file includes ready-to-run commands for each sub-workflow:
+
+```
+## Wave 1 (run in parallel)
+/finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
+
+## Wave 2 (run after Wave 1 completes)
+/finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
+```

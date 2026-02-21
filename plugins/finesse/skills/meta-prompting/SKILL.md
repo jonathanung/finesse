@@ -99,7 +99,7 @@ When the plan is accepted, the prompt you construct is written to `ralph-plans/<
 
 - The file must contain ONLY the prompt text — no metadata, no YAML frontmatter, no markdown headers describing the plan
 - The file starts directly with the cold start paragraph (e.g., "You are iterating on...")
-- The file is referenced via `$(cat ralph-plans/<name>.md)` in the ralph-loop command
+- The file is referenced via `--prompt-file ralph-plans/<name>.md` in the `/finesse-execute` command
 - Metadata (task type, context, approach, rationale) goes in a separate `ralph-plans/<name>-plan.md` file
 - The completion promise text goes in `ralph-plans/<name>-promise.txt`
 
@@ -379,15 +379,15 @@ For each dependency, explain whether it is file-based or logical and why.
 Full ralph-loop command for each sub-task:
 ```
 ## Wave 1 (run in parallel)
-/ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-1/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-1/<task>/promise.txt)" --max-iterations=<N>
+/finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
 
 ## Wave 2 (run after Wave 1 completes)
-/ralph-loop:ralph-loop $(cat ralph-plans/<session>/wave-2/<task>/prompt.md) --completion-promise "$(cat ralph-plans/<session>/wave-2/<task>/promise.txt)" --max-iterations=<N>
+/finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
 ```
 
 ### Per-Sub-Workflow Prompt Rules
 
-1. Each `prompt.md` must be fully self-contained (valid as a `$(cat ...)` argument)
+1. Each `prompt.md` must be fully self-contained (read by `/finesse-execute` via `--prompt-file`)
 2. Must include its own cold start paragraph specific to its scope
 3. Must reference only files in its scope
 4. Must include its own verification commands, guardrails, and completion criteria

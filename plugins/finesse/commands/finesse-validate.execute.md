@@ -10,7 +10,7 @@ Run the validation suite for the Finesse execution layer. This checks structural
 
 Execute the validator:
 
-```!
+```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate_execute.py"
 ```
 

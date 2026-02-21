@@ -80,6 +80,31 @@ Perform post-execution retrospective on a completed ralph-loop run.
 /finesse-retro
 ```
 
+### /finesse-execute [ARGS]
+
+Launch a Finesse-managed ralph loop from a plan or inline prompt.
+
+**Arguments:**
+- `--prompt-file PATH` — Path to prompt file (e.g., `ralph-plans/my-plan.md`)
+- `--completion-promise-file PATH` — Path to completion promise file
+- `--max-iterations N` — Maximum iterations before auto-stop
+- No args — auto-detects the most recent plan from `ralph-plans/`
+- Inline prompt text — for quick tasks without /finesse planning
+
+**Usage:**
+```
+/finesse-execute --prompt-file ralph-plans/fix-token-refresh.md --completion-promise-file ralph-plans/fix-token-refresh-promise.txt --max-iterations 8
+/finesse-execute
+```
+
+### /cancel-finesse-execute
+
+Cancel an active Finesse execution loop. Saves telemetry to `.finesse/run-log.json` for retro analysis.
+
+### /finesse-validate-execute
+
+Validate the Finesse execution layer. Runs 63 structural and functional checks against the setup script, stop hook, hook registration, and command definitions. Exit code 0 = all checks pass.
+
 ## What Happens
 
 1. **Task type detection** — Finesse classifies your task (feature, bugfix, refactor, testing, performance, research)
@@ -95,7 +120,7 @@ Perform post-execution retrospective on a completed ralph-loop run.
 7. **Parallel validation** — 6 agents review the plan simultaneously
 8. **Refinement** — Issues fixed automatically or flagged for your input
 9. **Presentation** — Plan shown for your approval
-10. **On acceptance** — Three files saved to `ralph-plans/` (prompt, promise, metadata), you get the ralph-loop command
+10. **On acceptance** — Three files saved to `ralph-plans/` (prompt, promise, metadata), you choose to execute immediately, copy the command, or save only
 
 ## UAT Checkpoints
 
@@ -130,15 +155,15 @@ Discovery phases (marked `(deep)`) always require full confirmation, even if UAT
 ## Output
 
 Accepted plans are saved as three files in `ralph-plans/`:
-- `<name>.md` — prompt text only (referenced by the command via `$(cat ...)`)
+- `<name>.md` — prompt text only (referenced by `/finesse-execute` via `--prompt-file`)
 - `<name>-promise.txt` — completion promise text only
 - `<name>-plan.md` — metadata: task type, approach, rationale, iteration reasoning
 
 For multi-workflow tasks, files are organized under `ralph-plans/<session-name>/` with wave/task subdirectories. See Multi-Workflow Output below.
 
-You get a ready-to-run command:
+You get a ready-to-run command (or can execute directly):
 ```
-/ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
+/finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>
 ```
 
 ## Multi-Workflow Output
@@ -180,6 +205,12 @@ Finesse caches codebase exploration findings in `.finesse/exploration-cache.json
 - **Configuration**: Override the threshold in `.finesse/config.json` (default: 50 files)
 - **Location**: `.finesse/` is gitignored — cache is local to your machine
 - **Reset**: Delete `.finesse/exploration-cache.json` to force full re-exploration
+
+## Execution Layer
+
+Finesse ships its own execution layer and no longer requires the ralph-wiggum plugin as a separate install. The execution layer includes a setup script, stop hook, and per-iteration telemetry for post-execution retrospectives via `/finesse-retro`.
+
+Use `/finesse-validate-execute` to verify the execution layer is healthy on your machine.
 
 ## When to Use Finesse
 
