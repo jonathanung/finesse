@@ -20,6 +20,8 @@ from pathlib import Path
 PLANNING_SKILLS = {
     "finesse",
     "finesse:finesse",
+    "finesse-edit",
+    "finesse:finesse-edit",
     "finesse-mini",
     "finesse:finesse-mini",
     "finesse-resume",

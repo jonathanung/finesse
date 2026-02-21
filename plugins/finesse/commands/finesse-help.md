@@ -113,6 +113,23 @@ Perform post-execution retrospective on a completed ralph-loop run.
 /finesse-retro
 ```
 
+### /finesse-edit <PLAN_NAME> [--max-refinements N]
+
+Edit an existing accepted plan — apply targeted changes, re-validate, and re-save.
+
+Loads plan files from `finesse-plans/`, presents the current plan, collects your edit instructions, applies targeted changes to the prompt (does NOT rebuild from scratch), re-validates with all 6 validation agents, shows a diff summary of what changed, and re-saves on acceptance. Does NOT re-run exploration, discovery, architecture, or scope analysis — those are already baked into the plan.
+
+**Arguments:**
+- `PLAN_NAME` — Name of the plan to edit. If omitted, lists available plans.
+- `--max-refinements N` — Max validation refinement cycles (default: 5).
+
+**Usage:**
+```
+/finesse-edit fix-token-refresh
+/finesse-edit fix-token-refresh --max-refinements 3
+/finesse-edit
+```
+
 ### /finesse:finesse-execute [ARGS]
 
 Launch a Finesse-managed ralph loop from a plan or inline prompt.

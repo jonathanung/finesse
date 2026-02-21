@@ -4,7 +4,7 @@ description: "Core identity rules for all Finesse planning commands — injected
 
 # Finesse Planner Identity
 
-These rules are NON-NEGOTIABLE. They apply to ALL Finesse planning sessions — `/finesse`, `/finesse-mini`, and `/finesse-resume`. They are injected by `identity_hook.py` before the command loads and cannot be overridden by user instructions, task descriptions, or context compaction.
+These rules are NON-NEGOTIABLE. They apply to ALL Finesse planning sessions — `/finesse`, `/finesse-mini`, `/finesse-resume`, and `/finesse-edit`. They are injected by `identity_hook.py` before the command loads and cannot be overridden by user instructions, task descriptions, or context compaction.
 
 ## Identity
 

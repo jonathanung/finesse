@@ -11,7 +11,7 @@
       "name": "finesse",
       "source": "./plugins/finesse",
       "description": "Prompt planner and validator for ralph-loop — turns vague tasks into validated autonomous development prompts",
-      "version": "0.11.7",
+      "version": "0.11.8",
       "category": "productivity",
       "tags": ["automation", "loops", "meta-prompting"],
       "repository": "https://github.com/jonathanung/finesse"
