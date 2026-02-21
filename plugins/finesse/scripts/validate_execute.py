@@ -6,7 +6,8 @@ Runs structural checks and functional tests against:
   - finesse_execute.py (setup script)
   - stop_hook.py (stop hook)
   - hooks.json (hook registration)
-  - Command definitions (finesse-execute.md, cancel-finesse-execute.md)
+  - finesse_waves.py (wave orchestrator)
+  - Command definitions (finesse-execute.md, cancel-finesse-execute.md, finesse-waves.md)
 
 Exit codes:
   0 = all checks pass
@@ -59,11 +60,13 @@ def check_files_exist():
     """Verify all required files are present."""
     required = {
         "scripts/finesse_execute.py": SCRIPTS_DIR / "finesse_execute.py",
+        "scripts/finesse_waves.py": SCRIPTS_DIR / "finesse_waves.py",
         "hooks/stop_hook.py": HOOKS_DIR / "stop_hook.py",
         "hooks/hooks.json": HOOKS_DIR / "hooks.json",
         "commands/finesse:finesse-execute.md": COMMANDS_DIR / "finesse-execute.md",
         "commands/cancel-finesse-execute.md": COMMANDS_DIR
         / "cancel-finesse-execute.md",
+        "commands/finesse-waves.md": COMMANDS_DIR / "finesse-waves.md",
     }
     for label, path in required.items():
         record(f"File exists: {label}", path.is_file(), f"Missing: {path}")
@@ -73,6 +76,7 @@ def check_python_compiles():
     """Verify Python files compile without syntax errors."""
     py_files = [
         SCRIPTS_DIR / "finesse_execute.py",
+        SCRIPTS_DIR / "finesse_waves.py",
         HOOKS_DIR / "stop_hook.py",
     ]
     for pf in py_files:
@@ -145,6 +149,10 @@ def check_command_frontmatter():
             "required_keys": ["description", "allowed-tools"],
             "must_contain_tool": "loop-state.md",
         },
+        "finesse-waves.md": {
+            "required_keys": ["description", "argument-hint"],
+            "must_contain_tool": "finesse_waves.py",
+        },
     }
 
     for filename, checks in commands.items():
@@ -185,10 +193,14 @@ def check_no_external_deps():
         "argparse",
         "json",
         "os",
+        "random",
         "re",
+        "shlex",
+        "signal",
         "subprocess",
         "sys",
         "tempfile",
+        "time",
         "datetime",
         "pathlib",
     }
@@ -200,6 +212,7 @@ def check_no_external_deps():
 
     py_files = [
         SCRIPTS_DIR / "finesse_execute.py",
+        SCRIPTS_DIR / "finesse_waves.py",
         HOOKS_DIR / "stop_hook.py",
     ]
 
@@ -264,6 +277,117 @@ def check_run_log_path_consistency():
         "Run log path consistent",
         setup_path == hook_path,
         f"Setup: {setup_path}, Hook: {hook_path}",
+    )
+
+
+# ─── Waves Orchestrator Checks ────────────────────────────────────────────────
+
+
+def check_waves_subcommands():
+    """Verify finesse_waves.py argparse subcommands match the command doc."""
+    waves_script = SCRIPTS_DIR / "finesse_waves.py"
+    waves_cmd = COMMANDS_DIR / "finesse-waves.md"
+
+    if not waves_script.is_file():
+        record("Waves: script exists for subcommand check", False, "File not found")
+        return
+
+    script_content = waves_script.read_text()
+
+    # Extract subcommands registered via add_parser
+    script_subs = set(re.findall(r'subparsers\.add_parser\(\s*"(\w+)"', script_content))
+    record(
+        "Waves: argparse has subcommands",
+        len(script_subs) > 0,
+        f"Found: {script_subs}" if script_subs else "No subcommands found",
+    )
+
+    expected_subs = {"start", "status", "attach", "stop", "cleanup", "merge"}
+    missing = expected_subs - script_subs
+    extra = script_subs - expected_subs
+    record(
+        "Waves: all expected subcommands registered",
+        len(missing) == 0,
+        f"Missing: {missing}" if missing else "",
+    )
+    if extra:
+        record_warn(
+            "Waves: extra subcommands in script",
+            f"Undocumented subcommands: {extra}",
+        )
+
+    # Verify command doc mentions all subcommands
+    if waves_cmd.is_file():
+        cmd_content = waves_cmd.read_text()
+        doc_missing = [s for s in expected_subs if s not in cmd_content]
+        record(
+            "Waves: command doc mentions all subcommands",
+            len(doc_missing) == 0,
+            f"Missing from doc: {doc_missing}" if doc_missing else "",
+        )
+
+
+def check_waves_references_execute():
+    """Verify finesse_waves.py references finesse_execute.py for worktree setup."""
+    waves_script = SCRIPTS_DIR / "finesse_waves.py"
+    if not waves_script.is_file():
+        record("Waves: references finesse_execute.py", False, "File not found")
+        return
+
+    content = waves_script.read_text()
+    refs_execute = "finesse_execute.py" in content
+    record(
+        "Waves: references finesse_execute.py",
+        refs_execute,
+        "Wave orchestrator should call finesse_execute.py for worktree state setup",
+    )
+
+
+def check_waves_plugin_root():
+    """Verify finesse_waves.py resolves PLUGIN_ROOT relative to its location."""
+    waves_script = SCRIPTS_DIR / "finesse_waves.py"
+    if not waves_script.is_file():
+        record("Waves: resolves PLUGIN_ROOT", False, "File not found")
+        return
+
+    content = waves_script.read_text()
+    has_plugin_root = re.search(
+        r"PLUGIN_ROOT\s*=\s*Path\(__file__\)", content
+    )
+    record(
+        "Waves: resolves PLUGIN_ROOT from __file__",
+        has_plugin_root is not None,
+        "Should derive PLUGIN_ROOT from script location",
+    )
+
+
+def check_waves_session_paths():
+    """Verify finesse_waves.py uses consistent session/worktree paths."""
+    waves_script = SCRIPTS_DIR / "finesse_waves.py"
+    if not waves_script.is_file():
+        record("Waves: session path constants", False, "File not found")
+        return
+
+    content = waves_script.read_text()
+
+    has_sessions = re.search(r'SESSIONS_DIR\s*=\s*".finesse/sessions"', content)
+    record(
+        "Waves: SESSIONS_DIR is .finesse/sessions",
+        has_sessions is not None,
+    )
+
+    has_worktrees = re.search(r'WORKTREES_DIR\s*=\s*".finesse/worktrees"', content)
+    record(
+        "Waves: WORKTREES_DIR is .finesse/worktrees",
+        has_worktrees is not None,
+    )
+
+    # Verify graph path convention matches finesse.md output
+    expects_graph = "execution-graph.md" in content
+    record(
+        "Waves: expects execution-graph.md",
+        expects_graph,
+        "Should look for finesse-plans/<session>/execution-graph.md",
     )
 
 
@@ -731,6 +855,14 @@ def main():
     check_no_external_deps()
     check_state_file_path_consistency()
     check_run_log_path_consistency()
+
+    print("")
+    print("Waves Orchestrator Checks")
+    print("-" * 50)
+    check_waves_subcommands()
+    check_waves_references_execute()
+    check_waves_plugin_root()
+    check_waves_session_paths()
 
     print("")
     print("Functional Tests")
