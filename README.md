@@ -7,13 +7,13 @@ A Claude Code plugin that turns vague task descriptions into validated, ready-to
 ## How It Works
 
 ```
-/finesse Build a REST API for managing todos with authentication
+/finesse:finesse Build a REST API for managing todos with authentication
 ```
 
 Finesse detects your task type, explores your codebase, asks you clarifying questions, designs implementation approaches, constructs a ralph-loop prompt, validates it with 5 specialized agents, and presents the result for your approval.
 
 ```
-You → /finesse "vague idea"
+You → /finesse:finesse "vague idea"
        ↓
   Task Classification (feature / bugfix / refactor / testing / performance / research)
        ↓
@@ -53,7 +53,7 @@ You → /finesse "vague idea"
 
 ## Commands
 
-### `/finesse <TASK> [--max-refinements N]`
+### `/finesse:finesse <TASK> [--max-refinements N]`
 
 Plan a ralph-loop prompt for any development task.
 
@@ -62,34 +62,34 @@ Plan a ralph-loop prompt for any development task.
 
 ```bash
 # Features
-/finesse Build a REST API for managing todos with auth
-/finesse Add a dark mode toggle to the settings page
+/finesse:finesse Build a REST API for managing todos with auth
+/finesse:finesse Add a dark mode toggle to the settings page
 
 # Bug fixes
-/finesse Fix the token refresh bug in auth.ts
-/finesse The search endpoint returns duplicates when filters overlap
+/finesse:finesse Fix the token refresh bug in auth.ts
+/finesse:finesse The search endpoint returns duplicates when filters overlap
 
 # Refactoring
-/finesse Refactor the database layer to use repository pattern
-/finesse Clean up the payment service — it's 800 lines
+/finesse:finesse Refactor the database layer to use repository pattern
+/finesse:finesse Clean up the payment service — it's 800 lines
 
 # Testing
-/finesse Add integration tests for the payments module
-/finesse Write unit tests for the email validation logic
+/finesse:finesse Add integration tests for the payments module
+/finesse:finesse Write unit tests for the email validation logic
 
 # Performance
-/finesse Optimize the search endpoint — it's taking 3+ seconds
-/finesse The dashboard page takes 5s to load
+/finesse:finesse Optimize the search endpoint — it's taking 3+ seconds
+/finesse:finesse The dashboard page takes 5s to load
 
 # Research
-/finesse Research whether we should use Redis or Memcached for caching
-/finesse Investigate the trade-offs between REST and GraphQL for our API
-/finesse Evaluate feasibility of migrating from Postgres to CockroachDB
+/finesse:finesse Research whether we should use Redis or Memcached for caching
+/finesse:finesse Investigate the trade-offs between REST and GraphQL for our API
+/finesse:finesse Evaluate feasibility of migrating from Postgres to CockroachDB
 ```
 
 #### Example Output
 
-For `/finesse Fix the token refresh bug in auth.ts`, Finesse produces something like:
+For `/finesse:finesse Fix the token refresh bug in auth.ts`, Finesse produces something like:
 
 ```bash
 /ralph-loop:ralph-loop $(cat ralph-plans/fix-token-refresh-auth.md) --completion-promise "$(cat ralph-plans/fix-token-refresh-auth-promise.txt)" --max-iterations=8
@@ -110,7 +110,7 @@ Finesse saves three files:
 
 Cancel the current planning session without saving.
 
-### `/finesse-help`
+### `/finesse:finesse-help`
 
 Show a summary of what Finesse does, its agents, and how to use it.
 

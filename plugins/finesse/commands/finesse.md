@@ -1,7 +1,7 @@
 ---
 description: "Plan and validate a ralph-loop prompt for autonomous development"
 argument-hint: "TASK_DESCRIPTION [--max-refinements N]"
-allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "Skill", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
+allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "Bash(git rev-parse --git-dir)", "Skill", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -58,7 +58,7 @@ Before calling ExitPlanMode, verify:
 10. Context Budget estimated
 11. ALL 6 validation agents launched in parallel
 12. All CRITICAL and HIGH validation issues resolved
-13. Execution layer pre-flight check run
+13. Pre-flight validation run (execution layer, git tracking, scoped files, verification commands)
 
 If ANY step was skipped, STOP and return to the first skipped step. Do NOT call ExitPlanMode with an incomplete workflow.
 
@@ -90,17 +90,17 @@ Once classified, follow the corresponding workflow from the **task-workflows** s
 
 ## Workflow Quick Reference
 
-### Feature: F1 Discovery (deep) → F2 Codebase Exploration [UAT] → F3 Scope Analysis [UAT] → F4 Clarifying Questions → F5 Architecture Design [UAT] → F6 Plan Construction [UAT] → Validate → Present
+### Feature: F1 Discovery (deep) → F2 Codebase Exploration [UAT] → F3 Scope Analysis [UAT] → F4 Clarifying Questions → F5 Architecture Design [UAT] → F6 Plan Construction [UAT] → Validate → Pre-flight → Present
 
-### Bug Fix: B1 Bug Understanding (deep) → B2 Codebase Investigation [UAT] → B3 Scope Analysis [UAT] → B4 Root Cause Analysis [UAT] → B5 Fix Strategy [UAT] → Plan → Validate → Present
+### Bug Fix: B1 Bug Understanding (deep) → B2 Codebase Investigation [UAT] → B3 Scope Analysis [UAT] → B4 Root Cause Analysis [UAT] → B5 Fix Strategy [UAT] → Plan → Validate → Pre-flight → Present
 
-### Refactor: R1 Scope Definition (deep) → R2 Current State Analysis [UAT] → R3 Scope Analysis [UAT] → R4 Target State Design [UAT] → R5 Migration Strategy [UAT] → Plan → Validate → Present
+### Refactor: R1 Scope Definition (deep) → R2 Current State Analysis [UAT] → R3 Scope Analysis [UAT] → R4 Target State Design [UAT] → R5 Migration Strategy [UAT] → Plan → Validate → Pre-flight → Present
 
-### Testing: T1 Coverage Analysis [UAT] → T2 Scope Analysis [UAT] → T3 Test Strategy [UAT] → T4 Clarifying Questions → Plan → Validate → Present
+### Testing: T1 Coverage Analysis [UAT] → T2 Scope Analysis [UAT] → T3 Test Strategy [UAT] → T4 Clarifying Questions → Plan → Validate → Pre-flight → Present
 
-### Performance: P1 Problem Definition (deep) → P2 Profiling & Analysis [UAT] → P3 Scope Analysis [UAT] → P4 Optimization Strategy [UAT] → Plan → Validate → Present
+### Performance: P1 Problem Definition (deep) → P2 Profiling & Analysis [UAT] → P3 Scope Analysis [UAT] → P4 Optimization Strategy [UAT] → Plan → Validate → Pre-flight → Present
 
-### Research: RE1 Goal Definition (deep) → RE2 Source Identification [UAT] → RE3 Scope Analysis [UAT] → RE4 Research Plan & Questions [UAT] → RE5 Investigation Strategy [UAT] → Plan → Validate → Present
+### Research: RE1 Goal Definition (deep) → RE2 Source Identification [UAT] → RE3 Scope Analysis [UAT] → RE4 Research Plan & Questions [UAT] → RE5 Investigation Strategy [UAT] → Plan → Validate → Pre-flight → Present
 
 Phases marked `(deep)` require thorough probing before proceeding. Phases marked `[UAT]` require a User Acceptance Testing checkpoint — see UAT Checkpoint Procedure below.
 
@@ -246,12 +246,36 @@ Launch ALL 6 validation agents in parallel per the **prompt-validation** skill. 
 
 Each fix-and-revalidate cycle costs one `--max-refinements` iteration. Re-run ALL 6 agents after fixes to catch regressions. In Multi-Workflow mode, validate each sub-workflow independently.
 
-### Execution Layer Pre-flight Check
+### Pre-flight Validation
 
-Before presenting the plan, run `/finesse-validate-execute` using the Skill tool to confirm the Finesse execution layer is healthy. Parse the output:
+Before presenting the plan, run environment pre-flight checks to verify the execution environment is ready. Collect results as warnings — pre-flight failures are advisory, not blocking, since the user may know things Finesse does not. The one exception is execution layer health: if it fails, the "Execute now" acceptance option must be disabled.
 
-- If all checks pass (exit code 0): Set `execution_layer_healthy = true`. Proceed to presentation with all three acceptance options (Execute now, Copy command, Save plan only).
-- If any check fails (exit code 1): Set `execution_layer_healthy = false`. Warn the user that the execution layer has issues and include the failure details in the presentation. Fall back to two acceptance options only (Copy command, Save plan only) — omit "Execute now".
+Run these 4 checks in order:
+
+**1. Execution layer health**: Run `/finesse-validate-execute` using the Skill tool. Parse the output:
+- Exit code 0: Set `execution_layer_healthy = true`.
+- Exit code 1: Set `execution_layer_healthy = false`. Record the failure details as a pre-flight warning.
+
+**2. Git tracking**: Run `git rev-parse --git-dir` via Bash. This check exists because `finesse_execute.py` captures a pre-execution git hash for retrospective analysis.
+- Success (exit code 0): Git tracking confirmed.
+- Failure (exit code 128 or non-zero): Record warning: "Workspace is not git-tracked. The execution layer captures a pre-execution git hash for retro — this will fail without git."
+
+**3. Scoped file existence**: Extract the file paths listed in the prompt's scope constraints section (files to modify, files to leave alone). For each path, verify it exists using Glob.
+- All files found: Scoped files confirmed.
+- Missing files: Record warning for each: "Scoped file not found: [path]. The prompt references this file but it does not exist in the workspace."
+
+**4. Verification command runnability**: Extract the verification commands from the prompt's phase Verify: lines (e.g., `npm test`, `pytest`, `make lint`). For each command, check plausibility:
+- If the command starts with `npm`/`npx`/`yarn`/`pnpm`: check that `package.json` exists and the script or binary is referenced.
+- If the command starts with `make`: check that a `Makefile` exists and contains the target.
+- If the command starts with `pytest`/`python`: check that `pyproject.toml` or `setup.py`/`setup.cfg` exists.
+- If the command starts with `cargo`: check that `Cargo.toml` exists.
+- If the command starts with `go`: check that `go.mod` exists.
+- For other commands: skip (assume runnable).
+- Record warning for unverifiable commands: "Verification command may not be runnable: [command]. Could not find [what's missing]."
+
+After all 4 checks, collect warnings into a `pre_flight_warnings` list. If non-empty, include them in the Presentation section under a "Pre-flight warnings" heading.
+
+If `execution_layer_healthy` is false, the Presentation and User Decision sections already handle disabling the "Execute now" option — this behavior is unchanged.
 
 This check is NOT affected by UAT fast-forward — it always runs.
 
@@ -266,7 +290,8 @@ Present the plan via ExitPlanMode. The plan file must contain:
 6. **Context budget estimate** — pressure rating, file breakdown (count per category), estimated cost range, and disclaimer
 7. **`--completion-promise`** text
 8. **Unresolved warnings** (if any from validation)
-9. **The exact /finesse-execute command to run** (using file references — see User Decision below)
+9. **Pre-flight warnings** (if any from pre-flight validation)
+10. **The exact /finesse-execute command to run** (using file references — see User Decision below)
 
 Note: The presentation is for the user to review. The actual files written on acceptance are described under User Decision.
 

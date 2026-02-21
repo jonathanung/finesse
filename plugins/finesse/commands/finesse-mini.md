@@ -1,7 +1,7 @@
 ---
 description: "Lightweight micro-task prompt planning — single-pass alternative to /finesse"
 argument-hint: "TASK_DESCRIPTION"
-allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "Skill", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
+allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "Bash(git rev-parse --git-dir)", "Skill", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -39,7 +39,7 @@ You MUST complete ALL 3 phases IN ORDER. Do NOT call ExitPlanMode until all step
 4. Git Configuration prompted (mandatory)
 5. Phase 3: All 3 validators launched in parallel
 6. All CRITICAL validation issues resolved
-7. Execution layer pre-flight check run
+7. Pre-flight validation run (execution layer, git tracking, scoped files, verification commands)
 
 If ANY step was skipped, STOP and return to the first skipped step.
 
@@ -166,12 +166,19 @@ Skip: clarity-checker, phase-structure-analyzer, failure-mode-auditor (micro-tas
 
 ## Presentation
 
-### Execution Layer Pre-flight Check
+### Pre-flight Validation
 
-Before presenting the plan, run `/finesse-validate-execute` using the Skill tool. Parse the output:
+Before presenting the plan, run environment pre-flight checks. Failures are advisory warnings, not blockers, except execution layer health which controls the "Execute now" option.
 
-- All checks pass (exit code 0): Set `execution_layer_healthy = true`.
-- Any check fails (exit code 1): Set `execution_layer_healthy = false`. Warn the user.
+**1. Execution layer health**: Run `/finesse-validate-execute` using the Skill tool. Exit code 0 sets `execution_layer_healthy = true`; exit code 1 sets it to false and records a warning with failure details.
+
+**2. Git tracking**: Run `git rev-parse --git-dir` via Bash. If it fails, record warning that the workspace is not git-tracked and the execution layer's git hash capture will fail.
+
+**3. Scoped file existence**: Glob-check file paths from the prompt's scope constraints. Record a warning for each missing file.
+
+**4. Verification command runnability**: Check that verification commands reference existing tooling (package.json scripts, Makefile targets, pyproject.toml, Cargo.toml, go.mod as appropriate). Record a warning for each unverifiable command.
+
+Include any warnings in the presentation. If `execution_layer_healthy` is false, disable "Execute now".
 
 ### Present via ExitPlanMode
 

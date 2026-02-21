@@ -4,7 +4,7 @@ description: "Task-type-specific planning workflows for Finesse — defines phas
 
 # Task Workflows
 
-After detecting the task type, follow the corresponding workflow below. Every workflow ends with plan construction, validation, and presentation. The phases before that differ by task type.
+After detecting the task type, follow the corresponding workflow below. Every workflow ends with plan construction, validation, pre-flight, and presentation. The phases before that differ by task type.
 
 ---
 
@@ -186,6 +186,8 @@ Follow the Plan Construction Phase Template. Task-specific content:
 
 Launch all 6 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
 
+After validation passes, run pre-flight checks per the "Pre-flight Validation" section of finesse.md Common Final Phases. Collect warnings for presentation.
+
 ### Phase 8: Presentation
 
 Present the validated plan. On acceptance, save to `ralph-plans/` and output the command.
@@ -262,7 +264,7 @@ Follow the Plan Construction Phase Template. Task-specific content:
 
 ### Phase 7: Validation + Presentation
 
-Validate and present. Same as feature workflow phases 7-8.
+Validate, run pre-flight checks, and present. Same as feature workflow phases 7-8.
 
 ---
 
@@ -333,7 +335,7 @@ Follow the Plan Construction Phase Template. Task-specific content:
 
 ### Phase 7: Validation + Presentation
 
-Validate and present.
+Validate, run pre-flight checks, and present.
 
 ---
 
@@ -392,7 +394,7 @@ Follow the Plan Construction Phase Template. Task-specific content:
 
 ### Phase 6: Validation + Presentation
 
-Validate and present.
+Validate, run pre-flight checks, and present.
 
 ---
 
@@ -446,7 +448,7 @@ Follow the Plan Construction Phase Template. Task-specific content:
 
 ### Phase 6: Validation + Presentation
 
-Validate and present.
+Validate, run pre-flight checks, and present.
 
 ---
 
@@ -548,6 +550,8 @@ Follow the Plan Construction Phase Template. Task-specific content:
 ### Phase 7: Validation
 
 Launch all 6 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
+
+After validation passes, run pre-flight checks per the "Pre-flight Validation" section of finesse.md Common Final Phases. Collect warnings for presentation.
 
 ### Phase 8: Presentation
 
