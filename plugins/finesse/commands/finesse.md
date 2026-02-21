@@ -231,6 +231,8 @@ Each fix-and-revalidate cycle costs one refinement iteration against your `--max
 
 If budget exhausted with only MEDIUM/LOW unresolved: present with explicit warnings listing each issue, its severity tier, and which agent flagged it.
 
+If budget exhausted with unresolved CRITICAL/HIGH: present with BLOCKING warnings and explicitly ask the user whether to proceed.
+
 In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 6 validators. A CRITICAL or HIGH verdict on any sub-workflow blocks the entire plan.
 
 ### Pre-flight Validation

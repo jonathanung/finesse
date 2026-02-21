@@ -4,7 +4,7 @@ description: "Orchestrates parallel prompt validation for Finesse planning sessi
 
 # Prompt Validation Orchestration
 
-During a Finesse planning session, you MUST validate every drafted plan before presenting it to the user. This is a non-negotiable gate.
+During a Finesse planning session, you MUST validate every drafted plan before presenting it to the user. This is a non-negotiable gate. This document describes the full 6-validator workflow used by `/finesse`, `/finesse-resume`, `/finesse-edit`, and `/finesse-retro`. `/finesse-mini` uses a reduced 3-validator workflow with its own verdict handling rules defined in `finesse-mini.md`.
 
 ## Validation Workflow
 
@@ -32,6 +32,8 @@ Each verdict is classified into a severity tier based on the agent and verdict t
 | **MEDIUM** | goal-achievement-auditor or failure-mode-auditor returns `FAIL` | Should fix within refinement budget. Can present with explicit warnings if budget exhausted. |
 | **LOW** | Any agent returns `NEEDS_REWORK` | Fix if budget allows after higher tiers resolved. |
 
+> **Note**: If scope-safety-reviewer returns `NEEDS_REWORK`, prioritize it ahead of other LOW items given its safety implications.
+
 ### Multi-Workflow Validation
 
 When the Scope Analysis phase resulted in a decomposition with multiple sub-workflows:
@@ -42,9 +44,9 @@ When the Scope Analysis phase resulted in a decomposition with multiple sub-work
 1. No file scope overlaps between parallel (same-wave) sub-workflow prompts
 2. Wave 2+ sub-workflows correctly assume wave 1 outputs as existing state (not as things to build)
 
-**Verdict aggregation**: All sub-workflow prompts must pass all 6 validators. A CRITICAL or HIGH tier verdict on any sub-workflow blocks the entire plan. MEDIUM tier verdicts on a sub-workflow generate warnings but do not block if that sub-workflow's refinement budget is exhausted.
+**Verdict aggregation**: All sub-workflow prompts must resolve all CRITICAL and HIGH tier issues from all 6 validators. A CRITICAL or HIGH tier verdict on any sub-workflow blocks the entire plan. MEDIUM tier verdicts on a sub-workflow generate warnings but do not block if that sub-workflow's refinement budget is exhausted.
 
-**Refinement budget**: Applies per sub-workflow independently. Each sub-workflow can use up to `--max-refinements` cycles.
+**Refinement budget**: Applies per sub-workflow independently. Each sub-workflow can use up to `--max-refinements` cycles. If a sub-workflow exhausts its budget with unresolved CRITICAL/HIGH issues, present the situation to the user — they may extend that sub-workflow's budget without affecting others.
 
 ### Step 2: Evaluate the Gate
 
@@ -64,7 +66,7 @@ For FAIL or NEEDS_REWORK verdicts:
    - **Requires user input**: Ambiguous requirements, missing context, unclear scope → ask the user
 3. Fix in priority order: CRITICAL → HIGH → MEDIUM → LOW
 4. **Budget-aware prioritization**: When the refinement budget drops below 50% remaining, focus exclusively on CRITICAL and HIGH issues. Skip MEDIUM and LOW unless all CRITICAL and HIGH issues are resolved and budget remains.
-5. Re-run ALL 6 validators on the revised plan (not a subset — this catches regressions)
+5. Re-run ALL 6 validators on the revised plan (not a subset — this catches regressions). If fixes introduce new lower-tier issues, classify and address them by the standard tier rules within remaining budget.
 6. Each cycle costs one refinement iteration against your budget
 
 ### Step 4: Safety Escalation
@@ -96,5 +98,6 @@ When the goal-achievement-auditor identifies issues that require user input:
 - When budget drops below 50% remaining: prioritize CRITICAL and HIGH exclusively
 - Budget exhausted with unresolved MEDIUM/LOW only: present with explicit warnings listing each unresolved issue, its severity tier, and which agent flagged it
 - CRITICAL or HIGH issues should never remain unresolved (they are mandatory), but if budget is exhausted with unresolved CRITICAL/HIGH: present with BLOCKING warnings and explicitly ask the user whether to proceed
-- On user rejection with feedback: budget resets to 0, but make targeted edits (the skeleton is already built — don't rebuild from scratch). Before re-validation, generate a prompt diff summary comparing pre-edit and post-edit prompt text — see the rejection handling procedure in finesse.md / finesse-mini.md for format and rules.
+- On user rejection with feedback: refinement counter resets to 0 (full budget restored), but make targeted edits (the skeleton is already built — don't rebuild from scratch). Before re-validation, generate a prompt diff summary comparing pre-edit and post-edit prompt text — see the rejection handling procedure in finesse.md / finesse-mini.md for format and rules.
+- Maximum 3 rejection cycles per planning session. After 3 rejections, present the plan as-is with all unresolved issues listed and recommend starting a fresh `/finesse` session if fundamental changes are needed.
 

@@ -21,6 +21,8 @@ When a planning session is long, Claude Code may compact context. To ensure crit
    uat_fast_forward: <true|false>
    session_name: <kebab-case session descriptor>
    decomposed: <true|false>
+   refinement_budget: <number>  # --max-refinements value, populated during Validation
+   refinement_cycles_used: <number>  # cycles consumed so far, updated during Validation
    context_pressure: <low|moderate|high|critical>  # populated during Plan Construction
    context_budget:  # populated during Plan Construction
      peak_iteration_tokens: <number>

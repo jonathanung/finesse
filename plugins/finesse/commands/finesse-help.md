@@ -212,8 +212,8 @@ This command outputs terminal commands for you to run directly — the orchestra
 4. **Clarifying questions** — Finesse asks you to resolve ambiguities (never guesses)
 5. **UAT checkpoints** — At strategic phases, Finesse presents its work and asks you to accept, provide feedback, make specific changes, or skip remaining checkpoints
 6. **Plan construction** — Builds a structured ralph-loop prompt with cold start, phases, verification commands, guardrails. Optionally includes subagent spawning instructions for parallel execution.
-7. **Parallel validation** — 6 agents review the plan simultaneously
-8. **Refinement** — Issues fixed automatically or flagged for your input
+7. **Parallel validation** — 6 agents review the plan simultaneously, each flagging issues by severity tier (CRITICAL, HIGH, MEDIUM, LOW)
+8. **Refinement** — CRITICAL and HIGH issues must be fixed before presenting; MEDIUM and LOW can be presented with warnings if the refinement budget is exhausted
 9. **Presentation** — Plan shown for your approval
 10. **On acceptance** — Three files saved to `finesse-plans/` (prompt, promise, metadata), you choose to execute immediately, copy the command, or save only
 

@@ -184,7 +184,7 @@ Follow the Plan Construction Phase Template. Task-specific content:
 
 ### Phase 7: Validation
 
-Launch all 6 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
+Launch all 6 validation agents in parallel on the drafted plan. Refine per severity tier rules in the prompt-validation skill.
 
 After validation passes, run pre-flight checks per the "Pre-flight Validation" section of finesse.md Common Final Phases. Collect warnings for presentation.
 
@@ -549,7 +549,7 @@ Follow the Plan Construction Phase Template. Task-specific content:
 
 ### Phase 7: Validation
 
-Launch all 6 validation agents in parallel on the drafted plan. Refine until all pass. (See prompt-validation skill.)
+Launch all 6 validation agents in parallel on the drafted plan. Refine per severity tier rules in the prompt-validation skill.
 
 After validation passes, run pre-flight checks per the "Pre-flight Validation" section of finesse.md Common Final Phases. Collect warnings for presentation.
 

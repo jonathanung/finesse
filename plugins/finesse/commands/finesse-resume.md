@@ -28,6 +28,16 @@ The following rules are specific to the `/finesse-resume` workflow:
 - When the user overrides decomposition, warn about consequences but respect the override.
 - Context budget estimation is mandatory during Plan Construction. If pressure is critical (>80%), present the estimate and recommend decomposition before proceeding. The re-route prompt at critical pressure is NOT affected by UAT fast-forward.
 
+## Mandatory Workflow Checklist
+
+Before calling ExitPlanMode, verify these final-phase gates were completed (in addition to all task-type-specific phases from the resume point):
+
+1. ALL 6 validation agents launched in parallel
+2. All CRITICAL and HIGH validation issues resolved
+3. Pre-flight validation run (execution layer, git tracking, scoped files, verification commands)
+
+If ANY step was skipped, STOP and return to the first skipped step.
+
 ---
 
 ## Argument Parsing
@@ -139,12 +149,12 @@ State: "Continue following the [workflow name] workflow from Phase [code] ([phas
 
 Reference the **task-workflows** skill for detailed phase-by-phase instructions. The full phase sequences are:
 
-- **Feature (feature-development)**: F1 (Discovery) → F2 (Codebase Exploration) [UAT] → F3 (Scope Analysis) [UAT] → F4 (Clarifying Questions) → F5 (Architecture Design) [UAT] → F6 (Plan Construction) [UAT] → F7 (Validation) → F8 (Presentation)
-- **Bug Fix (bug-fix)**: B1 (Bug Understanding) → B2 (Codebase Investigation) [UAT] → B3 (Scope Analysis) [UAT] → B4 (Root Cause Analysis) [UAT] → B5 (Fix Strategy) [UAT] → B6 (Plan Construction) → B7 (Validation + Presentation)
-- **Refactor (refactor-chore)**: R1 (Scope Definition) → R2 (Current State Analysis) [UAT] → R3 (Scope Analysis) [UAT] → R4 (Target State Design) [UAT] → R5 (Migration Strategy) [UAT] → R6 (Plan Construction) → R7 (Validation + Presentation)
-- **Testing (testing)**: T1 (Coverage Analysis) [UAT] → T2 (Scope Analysis) [UAT] → T3 (Test Strategy) [UAT] → T4 (Clarifying Questions) → T5 (Plan Construction) → T6 (Validation + Presentation)
-- **Performance (performance-optimization)**: P1 (Problem Definition) → P2 (Profiling & Analysis) [UAT] → P3 (Scope Analysis) [UAT] → P4 (Optimization Strategy) [UAT] → P5 (Plan Construction) → P6 (Validation + Presentation)
-- **Research (research)**: RE1 (Goal Definition) → RE2 (Source Identification) [UAT] → RE3 (Scope Analysis) [UAT] → RE4 (Research Plan & Questions) [UAT] → RE5 (Investigation Strategy) [UAT] → RE6 (Plan Construction) → RE7 (Validation) → RE8 (Presentation)
+- **Feature (feature-development)**: F1 (Discovery) → F2 (Codebase Exploration) [UAT] → F3 (Scope Analysis) [UAT] → F4 (Clarifying Questions) → F5 (Architecture Design) [UAT] → F6 (Plan Construction) [UAT] → F7 (Validation) → Pre-flight → F8 (Presentation)
+- **Bug Fix (bug-fix)**: B1 (Bug Understanding) → B2 (Codebase Investigation) [UAT] → B3 (Scope Analysis) [UAT] → B4 (Root Cause Analysis) [UAT] → B5 (Fix Strategy) [UAT] → B6 (Plan Construction) → B7 (Validation + Pre-flight + Presentation)
+- **Refactor (refactor-chore)**: R1 (Scope Definition) → R2 (Current State Analysis) [UAT] → R3 (Scope Analysis) [UAT] → R4 (Target State Design) [UAT] → R5 (Migration Strategy) [UAT] → R6 (Plan Construction) → R7 (Validation + Pre-flight + Presentation)
+- **Testing (testing)**: T1 (Coverage Analysis) [UAT] → T2 (Scope Analysis) [UAT] → T3 (Test Strategy) [UAT] → T4 (Clarifying Questions) → T5 (Plan Construction) → T6 (Validation + Pre-flight + Presentation)
+- **Performance (performance-optimization)**: P1 (Problem Definition) → P2 (Profiling & Analysis) [UAT] → P3 (Scope Analysis) [UAT] → P4 (Optimization Strategy) [UAT] → P5 (Plan Construction) → P6 (Validation + Pre-flight + Presentation)
+- **Research (research)**: RE1 (Goal Definition) → RE2 (Source Identification) [UAT] → RE3 (Scope Analysis) [UAT] → RE4 (Research Plan & Questions) [UAT] → RE5 (Investigation Strategy) [UAT] → RE6 (Plan Construction) → RE7 (Validation) → Pre-flight → RE8 (Presentation)
 
 Follow the phase-by-phase instructions from the **task-workflows** skill for the recovered task type's workflow, starting from the determined resume phase.
 
@@ -397,6 +407,8 @@ Each fix-and-revalidate cycle costs one refinement iteration against your `--max
 
 If budget exhausted with only MEDIUM/LOW unresolved: present with explicit warnings listing each issue, its severity tier, and which agent flagged it.
 
+If budget exhausted with unresolved CRITICAL/HIGH: present with BLOCKING warnings and explicitly ask the user whether to proceed.
+
 In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 6 validators. A CRITICAL or HIGH verdict on any sub-workflow blocks the entire plan.
 
 ### Pre-flight Validation
@@ -444,7 +456,8 @@ Present the plan via ExitPlanMode. The plan file must contain:
 7. **`--completion-promise`** text
 8. **What changed** (re-presentations only — omit on first presentation). Display the prompt diff summary generated during the rejection handling procedure, under the heading "What changed since last review:". This appears above validation warnings so the user sees what was revised before reviewing validation results. See Diff Summary Format above.
 9. **Unresolved warnings** (if any from validation)
-10. **The exact ralph-loop command to run** (using file references — see User Decision below)
+10. **Pre-flight warnings** (if any from pre-flight validation)
+11. **The exact /finesse:finesse-execute command to run** (using file references — see User Decision below)
 
 Note: The presentation is for the user to review. The actual files written on acceptance are described under User Decision.
 

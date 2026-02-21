@@ -181,6 +181,8 @@ Each fix-and-revalidate cycle costs one refinement iteration against the `--max-
 
 If budget exhausted with only MEDIUM/LOW unresolved: present with explicit warnings.
 
+If budget exhausted with unresolved CRITICAL/HIGH: present with BLOCKING warnings and explicitly ask the user whether to proceed.
+
 ## Step 6: Pre-flight Validation
 
 Run 4 pre-flight checks (advisory, not blocking except execution layer health):

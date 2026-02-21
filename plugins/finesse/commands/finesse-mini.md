@@ -154,6 +154,8 @@ Skip: clarity-checker, phase-structure-analyzer, failure-mode-auditor (micro-tas
 - **Maximum 1 refinement cycle.** If any validator still fails after 1 fix-and-revalidate cycle, present the plan with warnings attached. Do NOT loop further.
 - If scope-safety-reviewer returns FAIL with HIGH_RISK, ask the user to acknowledge the risk before presenting.
 
+> **Note**: The full `/finesse` command uses a 4-tier severity system (CRITICAL/HIGH/MEDIUM/LOW) with budget-aware prioritization. `/finesse-mini` simplifies this to a single-pass approach: scope-safety-reviewer FAIL blocks unconditionally (equivalent to CRITICAL); completion-validator or goal-achievement-auditor FAIL gets one fix attempt then present-with-warnings (collapses HIGH and MEDIUM); any NEEDS_REWORK presents with a note (equivalent to LOW).
+
 ---
 
 ## Presentation
@@ -181,7 +183,8 @@ The plan file must contain:
 4. **Recommended `--max-iterations`** with reasoning
 5. **What changed** (re-presentations only — omit on first presentation). Display the prompt diff summary generated during the rejection handling procedure, under the heading "What changed since last review:". This appears above validation warnings so the user sees what was revised before reviewing validation results. See diff summary rules in the rejection handling section below.
 6. **Unresolved warnings** (if any from validation)
-7. **The exact `/finesse:finesse-execute` command to run**
+7. **Pre-flight warnings** (if any from pre-flight validation)
+8. **The exact `/finesse:finesse-execute` command to run**
 
 ---
 

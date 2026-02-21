@@ -179,6 +179,7 @@ Handle validation verdicts using severity tiers:
 - HIGH (clarity-checker, phase-structure-analyzer, completion-validator FAIL): Must fix before presenting
 - MEDIUM (goal-achievement-auditor, failure-mode-auditor FAIL): Fix if within budget, warn if exhausted
 - LOW (any NEEDS_REWORK): Fix if budget allows
+When refinement budget drops below 50% remaining (after cycle 1 of 3), prioritize CRITICAL and HIGH issues exclusively.
 Maximum 3 refinement cycles per fix-loop prompt.
 
 **Present all fix-loop prompts** to the user. For each, output:
