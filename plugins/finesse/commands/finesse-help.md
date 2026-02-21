@@ -62,6 +62,24 @@ Resume an interrupted Finesse planning session from a working file.
 /finesse-resume ralph-plans/build-rest-api-working.md
 ```
 
+### /finesse-retro <PLAN_NAME>
+
+Perform post-execution retrospective on a completed ralph-loop run.
+
+**Arguments:**
+- `PLAN_NAME` — Name of the plan to analyze (fuzzy matching supported). If omitted, lists available plans.
+
+**Modes:**
+- **Retro (always)** — Compare estimated vs actual iterations, capture what worked and lessons learned
+- **PR Review (optional)** — Analyze git diff against original plan's scope, phases, and completion criteria
+- **Fix Loops (optional)** — Generate validated follow-up ralph-loop prompts for identified gaps
+
+**Usage:**
+```
+/finesse-retro fix-token-refresh
+/finesse-retro
+```
+
 ## What Happens
 
 1. **Task type detection** — Finesse classifies your task (feature, bugfix, refactor, testing, performance, research)

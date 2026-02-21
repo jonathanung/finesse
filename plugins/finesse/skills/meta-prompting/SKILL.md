@@ -107,6 +107,24 @@ Keep this in mind when constructing the prompt: everything you write using the t
 
 Write every prompt like a QA spec for a contractor you cannot talk to until the job is done. Every ambiguity is a potential infinite loop.
 
+### Plan Metadata Fields
+
+The `<name>-plan.md` file contains these fields for human reference and downstream tooling (e.g., `/finesse-retro`):
+
+| Field | Source | Description |
+|---|---|---|
+| Task Type | Task classification | feature, bugfix, refactor, testing, performance, or research |
+| Summary | User task description | 1-2 sentence description of the task |
+| Codebase Context | Exploration phase | Key files, patterns, and conventions discovered |
+| Chosen Approach | Architecture phase | Selected approach with rationale |
+| Recommended --max-iterations | Plan construction | Iteration count with reasoning |
+| Context Budget Estimate | Budget estimation | Pressure rating, file breakdown, cost range, disclaimer |
+| Validation Results | Validation phase | Per-agent verdict and notes |
+| Unresolved Warnings | Validation phase | Issues not resolved within refinement budget |
+| baseline_commit | `git rev-parse HEAD` before file write | Git commit hash at plan creation time, used by `/finesse-retro` for PR review |
+| git_config | Git Configuration Prompt | User's git choices: checkpointing (yes/no), granularity (phase/change/custom), push (yes/no) |
+| subagent_enabled | Subagent Configuration Prompt | Whether subagent instructions were included in the prompt (yes/no) |
+
 ## Git Configuration Rules
 
 During Plan Construction, the user is prompted about git usage. Based on their answers, include the matching rules in the prompt's `## Rules` section:

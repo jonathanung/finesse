@@ -378,7 +378,8 @@ Note: The presentation is for the user to review. The actual files written on ac
 2. Write THREE files:
    - `ralph-plans/<name>.md` — the prompt text ONLY (no metadata, no YAML frontmatter, no markdown headers — just the raw prompt that the ralph-loop agent will read)
    - `ralph-plans/<name>-promise.txt` — the completion promise text ONLY (no quotes, no extra content)
-   - `ralph-plans/<name>-plan.md` — metadata for human reference: task type, summary, codebase context, chosen approach with rationale, recommended --max-iterations with reasoning, context budget estimate (pressure rating, file breakdown, estimated cost range, disclaimer), unresolved warnings (if any)
+   - `ralph-plans/<name>-plan.md` — metadata for human reference: task type, summary, codebase context, chosen approach with rationale, recommended --max-iterations with reasoning, context budget estimate (pressure rating, file breakdown, estimated cost range, disclaimer), unresolved warnings (if any), baseline_commit (git rev-parse HEAD captured before writing plan files), git_config (user's git configuration: checkpointing yes/no, granularity, push yes/no), subagent_enabled (whether subagent instructions were included)
+1.5. Capture baseline commit by running git rev-parse HEAD. Include this as the baseline_commit field in the plan metadata file.
 3. Output the exact command:
    ```
    /ralph-loop:ralph-loop $(cat ralph-plans/<name>.md) --completion-promise "$(cat ralph-plans/<name>-promise.txt)" --max-iterations=<N>
@@ -393,7 +394,8 @@ Note: The presentation is for the user to review. The actual files written on ac
 2. For each wave and task, create directories and write three files:
    - `ralph-plans/<session-name>/wave-<N>/<task-name>/prompt.md` — sub-workflow prompt text ONLY
    - `ralph-plans/<session-name>/wave-<N>/<task-name>/promise.txt` — sub-workflow completion promise ONLY
-   - `ralph-plans/<session-name>/wave-<N>/<task-name>/plan.md` — sub-workflow metadata
+   - `ralph-plans/<session-name>/wave-<N>/<task-name>/plan.md` — sub-workflow metadata (includes baseline_commit, git_config, subagent_enabled in addition to task type, approach, and iteration reasoning)
+1.5. Capture baseline commit by running git rev-parse HEAD. Include this as the baseline_commit field in each sub-workflow's plan metadata file.
 3. Write `ralph-plans/<session-name>/execution-graph.md` with wave structure, dependency rationale, and per-task commands
 4. Output ALL commands grouped by wave:
    ```
