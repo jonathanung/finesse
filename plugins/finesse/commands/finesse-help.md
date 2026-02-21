@@ -86,13 +86,13 @@ Cancel the current planning session without saving.
 Resume an interrupted Finesse planning session from a working file.
 
 **Arguments:**
-- No arguments — scans `ralph-plans/` for working files, lists if multiple
+- No arguments — scans `finesse-plans/` for working files, lists if multiple
 - `PATH` — path to a specific working file to resume from
 
 **Usage:**
 ```
 /finesse-resume
-/finesse-resume ralph-plans/build-rest-api-working.md
+/finesse-resume finesse-plans/build-rest-api-working.md
 ```
 
 ### /finesse-retro <PLAN_NAME>
@@ -118,15 +118,15 @@ Perform post-execution retrospective on a completed ralph-loop run.
 Launch a Finesse-managed ralph loop from a plan or inline prompt.
 
 **Arguments:**
-- `--prompt-file PATH` — Path to prompt file (e.g., `ralph-plans/my-plan.md`)
+- `--prompt-file PATH` — Path to prompt file (e.g., `finesse-plans/my-plan.md`)
 - `--completion-promise-file PATH` — Path to completion promise file
 - `--max-iterations N` — Maximum iterations before auto-stop
-- No args — auto-detects the most recent plan from `ralph-plans/`
+- No args — auto-detects the most recent plan from `finesse-plans/`
 - Inline prompt text — for quick tasks without /finesse planning
 
 **Usage:**
 ```
-/finesse:finesse-execute --prompt-file ralph-plans/fix-token-refresh.md --completion-promise-file ralph-plans/fix-token-refresh-promise.txt --max-iterations 8
+/finesse:finesse-execute --prompt-file finesse-plans/fix-token-refresh.md --completion-promise-file finesse-plans/fix-token-refresh-promise.txt --max-iterations 8
 /finesse:finesse-execute
 ```
 
@@ -153,7 +153,7 @@ Validate the Finesse execution layer. Runs 63 structural and functional checks a
 7. **Parallel validation** — 6 agents review the plan simultaneously
 8. **Refinement** — Issues fixed automatically or flagged for your input
 9. **Presentation** — Plan shown for your approval
-10. **On acceptance** — Three files saved to `ralph-plans/` (prompt, promise, metadata), you choose to execute immediately, copy the command, or save only
+10. **On acceptance** — Three files saved to `finesse-plans/` (prompt, promise, metadata), you choose to execute immediately, copy the command, or save only
 
 ## UAT Checkpoints
 
@@ -187,16 +187,16 @@ Discovery phases (marked `(deep)`) always require full confirmation, even if UAT
 
 ## Output
 
-Accepted plans are saved as three files in `ralph-plans/`:
+Accepted plans are saved as three files in `finesse-plans/`:
 - `<name>.md` — prompt text only (referenced by `/finesse:finesse-execute` via `--prompt-file`)
 - `<name>-promise.txt` — completion promise text only
 - `<name>-plan.md` — metadata: task type, approach, rationale, iteration reasoning
 
-For multi-workflow tasks, files are organized under `ralph-plans/<session-name>/` with wave/task subdirectories. See Multi-Workflow Output below.
+For multi-workflow tasks, files are organized under `finesse-plans/<session-name>/` with wave/task subdirectories. See Multi-Workflow Output below.
 
 You get a ready-to-run command (or can execute directly):
 ```
-/finesse:finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>
+/finesse:finesse-execute --prompt-file finesse-plans/<name>.md --completion-promise-file finesse-plans/<name>-promise.txt --max-iterations <N>
 ```
 
 ## Multi-Workflow Output
@@ -206,9 +206,9 @@ For large tasks, Finesse may decompose the work into multiple ralph-loop runs or
 - **Wave 1**: Independent sub-tasks that can run in parallel
 - **Wave 2+**: Sub-tasks that depend on earlier waves completing
 
-Output goes to `ralph-plans/<session>/wave-N/<task>/` instead of the flat format. An `execution-graph.md` shows the dependency structure and all commands.
+Output goes to `finesse-plans/<session>/wave-N/<task>/` instead of the flat format. An `execution-graph.md` shows the dependency structure and all commands.
 
-Single-workflow tasks still use the flat `ralph-plans/<name>.md` format.
+Single-workflow tasks still use the flat `finesse-plans/<name>.md` format.
 
 ## Plan Rejection
 

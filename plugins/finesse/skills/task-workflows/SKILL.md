@@ -190,7 +190,7 @@ After validation passes, run pre-flight checks per the "Pre-flight Validation" s
 
 ### Phase 8: Presentation
 
-Present the validated plan. On acceptance, save to `ralph-plans/` and output the command.
+Present the validated plan. On acceptance, save to `finesse-plans/` and output the command.
 
 ---
 
@@ -555,7 +555,7 @@ After validation passes, run pre-flight checks per the "Pre-flight Validation" s
 
 ### Phase 8: Presentation
 
-Present the validated plan. On acceptance, save to `ralph-plans/` and output the command.
+Present the validated plan. On acceptance, save to `finesse-plans/` and output the command.
 
 ---
 
@@ -581,8 +581,8 @@ When the Scope Analysis phase results in an accepted decomposition, the remainin
 
 ```
 ## Wave 1 (run in parallel)
-/finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
+/finesse:finesse-execute --prompt-file finesse-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file finesse-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
 
 ## Wave 2 (run after Wave 1 completes)
-/finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
+/finesse:finesse-execute --prompt-file finesse-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file finesse-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
 ```

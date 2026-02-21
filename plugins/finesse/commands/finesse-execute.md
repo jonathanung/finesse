@@ -1,7 +1,7 @@
 ---
 description: "Launch a Finesse-managed ralph loop from a plan or inline prompt"
 argument-hint: "[--prompt-file PATH] [--completion-promise-file PATH] [--max-iterations N] [PROMPT...]"
-allowed-tools: ["Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py:*)", "Read(ralph-plans/*)", "Read(ralph-plans/**/*)", "Read(.finesse/*)", "Glob(ralph-plans/*)", "Glob(ralph-plans/**/*)", "AskUserQuestion"]
+allowed-tools: ["Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py:*)", "Read(finesse-plans/*)", "Read(finesse-plans/**/*)", "Read(.finesse/*)", "Glob(finesse-plans/*)", "Glob(finesse-plans/**/*)", "AskUserQuestion"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -21,15 +21,15 @@ If `$ARGUMENTS` contains `--prompt-file`, pass all arguments directly to the set
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py" $ARGUMENTS
 ```
 
-### Pattern 2: Auto-detect from ralph-plans/
+### Pattern 2: Auto-detect from finesse-plans/
 
 If `$ARGUMENTS` is empty or blank:
 
-1. Use `Glob` to scan `ralph-plans/` for plan files:
-   - Single-workflow: `ralph-plans/*-promise.txt` (paired with `ralph-plans/*.md`)
-   - Multi-workflow: `ralph-plans/*/execution-graph.md`
+1. Use `Glob` to scan `finesse-plans/` for plan files:
+   - Single-workflow: `finesse-plans/*-promise.txt` (paired with `finesse-plans/*.md`)
+   - Multi-workflow: `finesse-plans/*/execution-graph.md`
 
-2. If no plans found, say "No plans found in ralph-plans/. Run /finesse first to generate a plan, or provide a prompt inline." and stop.
+2. If no plans found, say "No plans found in finesse-plans/. Run /finesse first to generate a plan, or provide a prompt inline." and stop.
 
 3. If exactly one single-workflow plan found:
    - Read the `-plan.md` file to extract task type, approach summary, and iteration count
@@ -67,13 +67,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py" $ARGUMENTS
 ## Auto-Detection File Resolution
 
 When auto-detecting a single-workflow plan, the three files follow this naming:
-- Prompt: `ralph-plans/<n>.md`
-- Promise: `ralph-plans/<n>-promise.txt`
-- Metadata: `ralph-plans/<n>-plan.md`
+- Prompt: `finesse-plans/<n>.md`
+- Promise: `finesse-plans/<n>-promise.txt`
+- Metadata: `finesse-plans/<n>-plan.md`
 
 To construct the execute command from a detected plan named `<n>`:
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py" --prompt-file "ralph-plans/<n>.md" --completion-promise-file "ralph-plans/<n>-promise.txt" --max-iterations <N>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py" --prompt-file "finesse-plans/<n>.md" --completion-promise-file "finesse-plans/<n>-promise.txt" --max-iterations <N>
 ```
 
 Where `<N>` is extracted from the `-plan.md` metadata. If the metadata file is missing or doesn't contain an iteration count, ask the user for a max-iterations value.
@@ -111,15 +111,15 @@ This data is consumed by `/finesse-retro` (when implemented) to generate post-ex
 ## Examples
 
 ```
-# Auto-detect the most recent plan from ralph-plans/
+# Auto-detect the most recent plan from finesse-plans/
 /finesse:finesse-execute
 
 # Execute a specific plan file
-/finesse:finesse-execute --prompt-file ralph-plans/fix-token-refresh-auth.md --completion-promise-file ralph-plans/fix-token-refresh-auth-promise.txt --max-iterations 8
+/finesse:finesse-execute --prompt-file finesse-plans/fix-token-refresh-auth.md --completion-promise-file finesse-plans/fix-token-refresh-auth-promise.txt --max-iterations 8
 
 # Inline prompt (bypass /finesse planning, useful for simple tasks)
 /finesse:finesse-execute "Fix the linting errors in src/utils/" --max-iterations 5 --completion-promise "COMPLETE"
 
 # Multi-workflow sub-task
-/finesse:finesse-execute --prompt-file ralph-plans/build-todo-api/wave-1/auth-endpoints/prompt.md --completion-promise-file ralph-plans/build-todo-api/wave-1/auth-endpoints/promise.txt --max-iterations 12
+/finesse:finesse-execute --prompt-file finesse-plans/build-todo-api/wave-1/auth-endpoints/prompt.md --completion-promise-file finesse-plans/build-todo-api/wave-1/auth-endpoints/promise.txt --max-iterations 12
 ```

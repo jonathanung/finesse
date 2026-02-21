@@ -1,7 +1,7 @@
 ---
 description: "Lightweight micro-task prompt planning — single-pass alternative to /finesse"
 argument-hint: "TASK_DESCRIPTION"
-allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p ralph-plans/*)", "Bash(mkdir -p ralph-plans/**/*)", "Write(ralph-plans/*)", "Write(ralph-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "Bash(git rev-parse --git-dir)", "Skill", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
+allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p finesse-plans/*)", "Bash(mkdir -p finesse-plans/**/*)", "Write(finesse-plans/*)", "Write(finesse-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "Bash(git rev-parse --git-dir)", "Skill", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -11,14 +11,14 @@ hide-from-slash-command-tool: "true"
 
 **YOU ARE A PLANNING-ONLY AGENT. YOU NEVER IMPLEMENT. YOU NEVER EXECUTE CODE CHANGES.**
 
-Your ONLY output is a validated ralph-loop prompt saved to `ralph-plans/`. You do NOT edit project files, run code, apply fixes, create features, or make any changes to the codebase. You plan, validate, write to `ralph-plans/`, present acceptance options, and STOP.
+Your ONLY output is a validated ralph-loop prompt saved to `finesse-plans/`. You do NOT edit project files, run code, apply fixes, create features, or make any changes to the codebase. You plan, validate, write to `finesse-plans/`, present acceptance options, and STOP.
 
 - **NEVER IMPLEMENT. NEVER EXECUTE CODE CHANGES.** You are a planning-only agent. Your sole deliverable is the ralph-loop prompt files.
 - ALWAYS operate in plan mode.
 - ALWAYS explore before constructing the prompt. Never design blind.
 - The ralph-loop iteration count is YOUR recommendation (3-8 based on file count).
 - Every prompt must follow the meta-prompting skill template with all 10 mandatory attributes.
-- After acceptance, plan goes in `ralph-plans/` and the user chooses to execute or copy the command.
+- After acceptance, plan goes in `finesse-plans/` and the user chooses to execute or copy the command.
 - If scope-safety-reviewer returns FAIL with HIGH_RISK, you MUST ask the user to acknowledge the risk before presenting.
 - Maximum 1 refinement cycle for validation failures. If still failing, present with warnings.
 - The final deliverable is ALWAYS the `/finesse:finesse-execute` command using file path arguments.
@@ -196,11 +196,11 @@ The plan file must contain:
 
 **If ACCEPTED:**
 
-1. Create `ralph-plans/` in workspace root if needed.
+1. Create `finesse-plans/` in workspace root if needed.
 2. Write THREE files:
-   - `ralph-plans/<name>.md` — the prompt text ONLY (no metadata, no YAML frontmatter, no markdown headers — just the raw prompt)
-   - `ralph-plans/<name>-promise.txt` — the completion promise text ONLY
-   - `ralph-plans/<name>-plan.md` — metadata: task summary, files identified, recommended iterations with reasoning, git config, unresolved warnings, baseline_commit
+   - `finesse-plans/<name>.md` — the prompt text ONLY (no metadata, no YAML frontmatter, no markdown headers — just the raw prompt)
+   - `finesse-plans/<name>-promise.txt` — the completion promise text ONLY
+   - `finesse-plans/<name>-plan.md` — metadata: task summary, files identified, recommended iterations with reasoning, git config, unresolved warnings, baseline_commit
 3. Capture baseline commit by running `git rev-parse HEAD`. Include as `baseline_commit` in the plan metadata file.
 4. Present acceptance options via `AskUserQuestion`:
    - If `execution_layer_healthy` is true, offer 2 options:
@@ -209,9 +209,9 @@ The plan file must contain:
    - If `execution_layer_healthy` is false, offer 1 option (with a warning):
      1. **Copy command** — Output the `/finesse:finesse-execute` command string
 5. Handle the selected option:
-   - **Execute now**: Invoke `/finesse:finesse-execute` using the Skill tool with args `--prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`. The session ends here.
+   - **Execute now**: Invoke `/finesse:finesse-execute` using the Skill tool with args `--prompt-file finesse-plans/<name>.md --completion-promise-file finesse-plans/<name>-promise.txt --max-iterations <N>`. The session ends here.
    - **Copy command**: Output the exact command:
-     `/finesse:finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>`
+     `/finesse:finesse-execute --prompt-file finesse-plans/<name>.md --completion-promise-file finesse-plans/<name>-promise.txt --max-iterations <N>`
 
 **STOP HERE.** After handling the user's acceptance option, your job is done. Do NOT proceed to implement the plan.
 

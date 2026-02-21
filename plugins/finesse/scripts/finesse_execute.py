@@ -193,10 +193,10 @@ def resolve_plan_files(args) -> tuple:
         # Derive plan name from file path
         p = Path(args.prompt_file)
         if p.name == "prompt.md":
-            # Multi-workflow: ralph-plans/<session>/wave-N/<task>/prompt.md
+            # Multi-workflow: finesse-plans/<session>/wave-N/<task>/prompt.md
             plan_name = p.parent.name
         else:
-            # Single-workflow: ralph-plans/<n>.md
+            # Single-workflow: finesse-plans/<n>.md
             plan_name = p.stem
     elif args.prompt:
         prompt_text = " ".join(args.prompt)
@@ -211,7 +211,7 @@ def resolve_plan_files(args) -> tuple:
             file=sys.stderr,
         )
         print(
-            "    /finesse:finesse-execute --prompt-file ralph-plans/my-plan.md",
+            "    /finesse:finesse-execute --prompt-file finesse-plans/my-plan.md",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -307,7 +307,7 @@ def main():
         "--prompt-file",
         type=str,
         default=None,
-        help="Path to prompt file (e.g. ralph-plans/my-plan.md)",
+        help="Path to prompt file (e.g. finesse-plans/my-plan.md)",
     )
     parser.add_argument(
         "--max-iterations",

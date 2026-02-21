@@ -309,18 +309,18 @@ def run_in_tmpdir(func):
 def test_setup_creates_state_file(tmpdir):
     """Setup script creates .finesse/loop-state.md with correct structure."""
     # Create plan files
-    os.makedirs("ralph-plans", exist_ok=True)
-    Path("ralph-plans/test-plan.md").write_text("Do the thing\n")
-    Path("ralph-plans/test-plan-promise.txt").write_text("DONE\n")
+    os.makedirs("finesse-plans", exist_ok=True)
+    Path("finesse-plans/test-plan.md").write_text("Do the thing\n")
+    Path("finesse-plans/test-plan-promise.txt").write_text("DONE\n")
 
     result = subprocess.run(
         [
             sys.executable,
             str(SCRIPTS_DIR / "finesse_execute.py"),
             "--prompt-file",
-            "ralph-plans/test-plan.md",
+            "finesse-plans/test-plan.md",
             "--completion-promise-file",
-            "ralph-plans/test-plan-promise.txt",
+            "finesse-plans/test-plan-promise.txt",
             "--max-iterations",
             "10",
         ],

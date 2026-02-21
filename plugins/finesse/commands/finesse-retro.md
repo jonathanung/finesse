@@ -1,27 +1,27 @@
 ---
 description: "Perform post-execution retrospective analysis on a completed ralph-loop run"
 argument-hint: "PLAN_NAME"
-allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash", "Write(ralph-plans/*)", "AskUserQuestion"]
+allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash", "Write(finesse-plans/*)", "AskUserQuestion"]
 ---
 
 # Finesse Retro — Post-Execution Retrospective
 
 Perform retrospective analysis on a completed ralph-loop run. This command reads plan metadata, gathers execution data from the user, and produces a timestamped retro document. Optionally performs PR review against the original plan scope and generates validated fix-loop prompts for identified gaps.
 
-This command only writes to `ralph-plans/`. It is read-only against all other project files except when running verification commands from the original plan (which require user confirmation).
+This command only writes to `finesse-plans/`. It is read-only against all other project files except when running verification commands from the original plan (which require user confirmation).
 
 ## Step 1: Resolve Plan Name
 
 Parse `$ARGUMENTS` as the plan name.
 
-- **If empty**: Use Glob to scan `ralph-plans/*-plan.md`, list available plans, and ask the user to pick one via AskUserQuestion.
-- **If provided**: Check for an exact match at `ralph-plans/<name>-plan.md`.
-  - **If no exact match**: Use Glob for `ralph-plans/*-plan.md`, filter for entries containing the argument as a substring (partial match / fuzzy resolution), and list matching candidates via AskUserQuestion.
-  - **If no matches at all**: Say "No plan found matching '<name>' in ralph-plans/. Available plans:" and list all `-plan.md` files. Stop.
+- **If empty**: Use Glob to scan `finesse-plans/*-plan.md`, list available plans, and ask the user to pick one via AskUserQuestion.
+- **If provided**: Check for an exact match at `finesse-plans/<name>-plan.md`.
+  - **If no exact match**: Use Glob for `finesse-plans/*-plan.md`, filter for entries containing the argument as a substring (partial match / fuzzy resolution), and list matching candidates via AskUserQuestion.
+  - **If no matches at all**: Say "No plan found matching '<name>' in finesse-plans/. Available plans:" and list all `-plan.md` files. Stop.
 
 ## Step 2: Load Plan Data
 
-Read the plan metadata file (`ralph-plans/<name>-plan.md`). Extract:
+Read the plan metadata file (`finesse-plans/<name>-plan.md`). Extract:
 - Task type (from `## Task Type` section)
 - Summary (from `## Summary` section)
 - Recommended --max-iterations (from `## Recommended --max-iterations` heading — parse the number)
@@ -29,14 +29,14 @@ Read the plan metadata file (`ralph-plans/<name>-plan.md`). Extract:
 - git_config (from `## git_config` or inline mention — may not exist in older plans)
 - subagent_enabled (from `## subagent_enabled` or inline mention — may not exist in older plans)
 
-Read the prompt file (`ralph-plans/<name>.md`). Extract:
+Read the prompt file (`finesse-plans/<name>.md`). Extract:
 - Scoped files: look for patterns like "Only modify files in", "Do NOT modify anything in", or file path lists
 - Phase structure: look for "Phase N:" or "### Phase N" headings
 - Completion criteria: look for "## Completion" section content
 - Verification commands: look for "Verify:" lines within phases
 - Guardrails: look for "## Rules" section, especially "Do NOT" lines
 
-Read the promise file (`ralph-plans/<name>-promise.txt`) if it exists.
+Read the promise file (`finesse-plans/<name>-promise.txt`) if it exists.
 
 If any file is missing, report which files were found and which are missing. Continue with available data — do not stop.
 
@@ -51,7 +51,7 @@ Use AskUserQuestion to ask two questions in a single call:
 
 ## Step 4: Check for Existing Retro
 
-Use Glob to check if `ralph-plans/<name>-retro*.md` files already exist.
+Use Glob to check if `finesse-plans/<name>-retro*.md` files already exist.
 
 - **If found**: Use AskUserQuestion: "A retro document already exists for this plan (<filename>). What should we do?" with options:
   - "Overwrite" — replace the existing retro with a new one
@@ -85,7 +85,7 @@ Generate the retro document using the Retro Document Format (below). Synthesize:
   - Medium: Challenge caused 1-2 wasted iterations
   - Low: Minor inconvenience, optimization opportunity
 
-Write the retro document to `ralph-plans/<name>-retro.md` (or timestamped name from Step 4).
+Write the retro document to `finesse-plans/<name>-retro.md` (or timestamped name from Step 4).
 
 ## Step 6: Mode Selection Checkpoint
 
@@ -97,7 +97,7 @@ Use AskUserQuestion: "Retro complete and saved. Would you like to also:" with op
 
 If user selects [B], inform them: "Fix loop generation requires PR review data to identify gaps. Running PR review first, then generating fix loops." Then proceed to Steps 7 and 8.
 
-If user selects [D], output: "Retro saved to `ralph-plans/<retro-filename>`. Done." and stop.
+If user selects [D], output: "Retro saved to `finesse-plans/<retro-filename>`. Done." and stop.
 
 ## Step 7: Mode 2 — PR Review
 
@@ -149,7 +149,7 @@ Based on findings from the retro (Step 5) and PR review (Step 7), identify speci
 
 **For each identified gap**, generate a fix-loop prompt set:
 
-File naming: `ralph-plans/<original-name>-retro-fix-<N>.md`, `ralph-plans/<original-name>-retro-fix-<N>-promise.txt`, `ralph-plans/<original-name>-retro-fix-<N>-plan.md` where N starts at 1 and increments.
+File naming: `finesse-plans/<original-name>-retro-fix-<N>.md`, `finesse-plans/<original-name>-retro-fix-<N>-promise.txt`, `finesse-plans/<original-name>-retro-fix-<N>-plan.md` where N starts at 1 and increments.
 
 Each fix-loop prompt (`-retro-fix-<N>.md`) must include:
 - **Cold start paragraph**: "You are fixing gaps identified in the retrospective of the '<original-plan-name>' ralph-loop run. Before doing anything, check the current state of the relevant files and determine what needs to be fixed."
@@ -184,14 +184,14 @@ Maximum 3 refinement cycles per fix-loop prompt.
 **Present all fix-loop prompts** to the user. For each, output:
 ```
 ### Fix <N>: <gap description>
-/ralph-loop:ralph-loop $(cat ralph-plans/<name>-retro-fix-<N>.md) --completion-promise "$(cat ralph-plans/<name>-retro-fix-<N>-promise.txt)" --max-iterations <M>
+/ralph-loop:ralph-loop $(cat finesse-plans/<name>-retro-fix-<N>.md) --completion-promise "$(cat finesse-plans/<name>-retro-fix-<N>-promise.txt)" --max-iterations <M>
 ```
 
-Write all fix-loop files to `ralph-plans/`.
+Write all fix-loop files to `finesse-plans/`.
 
 ## Retro Document Format
 
-The retro document saved to `ralph-plans/` must follow this template:
+The retro document saved to `finesse-plans/` must follow this template:
 
 ```markdown
 # Retrospective: <plan-name>

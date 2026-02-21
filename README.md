@@ -31,7 +31,7 @@ You → /finesse:finesse "vague idea"
        ↓
   Presentation  ←  you approve or reject
        ↓
-  On Accept → ralph-plans/ output + execute or copy command(s)
+  On Accept → finesse-plans/ output + execute or copy command(s)
 ```
 
 ## Installation
@@ -87,17 +87,17 @@ Plan and validate a prompt for any development task.
 For `/finesse:finesse Fix the token refresh bug in auth.ts`, Finesse produces something like:
 
 ```bash
-/finesse:finesse-execute --prompt-file ralph-plans/fix-token-refresh-auth.md --completion-promise-file ralph-plans/fix-token-refresh-auth-promise.txt --max-iterations 8
+/finesse:finesse-execute --prompt-file finesse-plans/fix-token-refresh-auth.md --completion-promise-file finesse-plans/fix-token-refresh-auth-promise.txt --max-iterations 8
 ```
 
 Finesse saves three files:
-- `ralph-plans/fix-token-refresh-auth.md` — the prompt only: cold start paragraph, ordered fix-then-test phases, verification commands, and guardrails
-- `ralph-plans/fix-token-refresh-auth-promise.txt` — the completion promise text
-- `ralph-plans/fix-token-refresh-auth-plan.md` — metadata: task type, codebase context, chosen approach with rationale, iteration reasoning
+- `finesse-plans/fix-token-refresh-auth.md` — the prompt only: cold start paragraph, ordered fix-then-test phases, verification commands, and guardrails
+- `finesse-plans/fix-token-refresh-auth-promise.txt` — the completion promise text
+- `finesse-plans/fix-token-refresh-auth-plan.md` — metadata: task type, codebase context, chosen approach with rationale, iteration reasoning
 
 ### `/finesse:finesse-execute [--prompt-file PATH] [--completion-promise-file PATH] [--max-iterations N] [PROMPT...]`
 
-Execute a plan using Finesse's built-in execution layer. Can auto-detect plans from `ralph-plans/`, take explicit file arguments, or accept an inline prompt.
+Execute a plan using Finesse's built-in execution layer. Can auto-detect plans from `finesse-plans/`, take explicit file arguments, or accept an inline prompt.
 
 ### `/finesse:finesse-mini <TASK>`
 
@@ -180,27 +180,27 @@ If the scope-safety-reviewer flags `HIGH_RISK`, Finesse will ask you to explicit
 When you accept a plan, Finesse:
 
 **Single-workflow tasks:**
-1. Creates `ralph-plans/` in your workspace root (if it doesn't exist)
+1. Creates `finesse-plans/` in your workspace root (if it doesn't exist)
 2. Saves three files:
-   - `ralph-plans/<name>.md` — the prompt text only
-   - `ralph-plans/<name>-promise.txt` — the completion promise text only
-   - `ralph-plans/<name>-plan.md` — human-readable metadata: task type, codebase context, chosen approach, rationale, iteration reasoning, unresolved warnings
+   - `finesse-plans/<name>.md` — the prompt text only
+   - `finesse-plans/<name>-promise.txt` — the completion promise text only
+   - `finesse-plans/<name>-plan.md` — human-readable metadata: task type, codebase context, chosen approach, rationale, iteration reasoning, unresolved warnings
 3. Outputs the exact command:
    ```
-   /finesse:finesse-execute --prompt-file ralph-plans/<name>.md --completion-promise-file ralph-plans/<name>-promise.txt --max-iterations <N>
+   /finesse:finesse-execute --prompt-file finesse-plans/<name>.md --completion-promise-file finesse-plans/<name>-promise.txt --max-iterations <N>
    ```
 
 **Multi-workflow tasks (decomposed):**
-1. Creates `ralph-plans/<session-name>/` with wave/task subdirectories
+1. Creates `finesse-plans/<session-name>/` with wave/task subdirectories
 2. Each sub-workflow gets its own `prompt.md`, `promise.txt`, and `plan.md`
 3. An `execution-graph.md` documents the dependency structure and all commands
 4. Outputs commands grouped by wave:
    ```
    ## Wave 1 (run in parallel)
-   /finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
+   /finesse:finesse-execute --prompt-file finesse-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file finesse-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
 
    ## Wave 2 (run after Wave 1 completes)
-   /finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
+   /finesse:finesse-execute --prompt-file finesse-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file finesse-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
    ```
 
 Metadata and rationale live in the separate `-plan.md` (or `plan.md`) file.
@@ -269,7 +269,7 @@ If a task needs more than 25 iterations, Finesse automatically proposes decompos
 /finesse:finesse-mini <describe a small task>
 ```
 
-Finesse handles the rest. Plans are saved to `ralph-plans/` and ready to execute.
+Finesse handles the rest. Plans are saved to `finesse-plans/` and ready to execute.
 
 ## License
 

@@ -95,13 +95,13 @@ Do not output the completion promise unless every criterion is met.
 
 ## File Output Format
 
-When the plan is accepted, the prompt you construct is written to `ralph-plans/<name>.md` as a **prompt-only file**. This means:
+When the plan is accepted, the prompt you construct is written to `finesse-plans/<name>.md` as a **prompt-only file**. This means:
 
 - The file must contain ONLY the prompt text — no metadata, no YAML frontmatter, no markdown headers describing the plan
 - The file starts directly with the cold start paragraph (e.g., "You are iterating on...")
-- The file is referenced via `--prompt-file ralph-plans/<name>.md` in the `/finesse:finesse-execute` command
-- Metadata (task type, context, approach, rationale) goes in a separate `ralph-plans/<name>-plan.md` file
-- The completion promise text goes in `ralph-plans/<name>-promise.txt`
+- The file is referenced via `--prompt-file finesse-plans/<name>.md` in the `/finesse:finesse-execute` command
+- Metadata (task type, context, approach, rationale) goes in a separate `finesse-plans/<name>-plan.md` file
+- The completion promise text goes in `finesse-plans/<name>-promise.txt`
 
 Keep this in mind when constructing the prompt: everything you write using the template above becomes the content of the prompt-only file. Do not mix in non-prompt content.
 
@@ -337,7 +337,7 @@ When a task is decomposed into multiple sub-workflows during Scope Analysis, the
 ### Directory Structure
 
 ```
-ralph-plans/<session-name>/
+finesse-plans/<session-name>/
   execution-graph.md
   wave-1/
     <sub-task-name>/
@@ -379,10 +379,10 @@ For each dependency, explain whether it is file-based or logical and why.
 Full ralph-loop command for each sub-task:
 ```
 ## Wave 1 (run in parallel)
-/finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
+/finesse:finesse-execute --prompt-file finesse-plans/<session>/wave-1/<task>/prompt.md --completion-promise-file finesse-plans/<session>/wave-1/<task>/promise.txt --max-iterations <N>
 
 ## Wave 2 (run after Wave 1 completes)
-/finesse:finesse-execute --prompt-file ralph-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file ralph-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
+/finesse:finesse-execute --prompt-file finesse-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file finesse-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
 ```
 
 ### Per-Sub-Workflow Prompt Rules
@@ -400,8 +400,8 @@ The 10 Mandatory Attributes apply to EACH sub-workflow prompt individually. Ever
 ### Single-Workflow Backward Compatibility
 
 When decomposition does not occur, use the existing flat format:
-- `ralph-plans/<name>.md` — prompt text only
-- `ralph-plans/<name>-promise.txt` — promise text only
-- `ralph-plans/<name>-plan.md` — metadata
+- `finesse-plans/<name>.md` — prompt text only
+- `finesse-plans/<name>-promise.txt` — promise text only
+- `finesse-plans/<name>-plan.md` — metadata
 
 Never mix the flat and nested formats.
