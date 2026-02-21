@@ -72,7 +72,7 @@ When auto-detecting a single-workflow plan, the three files follow this naming:
 - Metadata: `ralph-plans/<n>-plan.md`
 
 To construct the execute command from a detected plan named `<n>`:
-```!
+```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py" --prompt-file "ralph-plans/<n>.md" --completion-promise-file "ralph-plans/<n>-promise.txt" --max-iterations <N>
 ```
 
