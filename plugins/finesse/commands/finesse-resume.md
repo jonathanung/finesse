@@ -7,7 +7,37 @@ hide-from-slash-command-tool: "true"
 
 # Finesse Resume
 
-Resume an interrupted Finesse planning session from a working file. This is a PLANNING-ONLY command — it NEVER implements or executes code changes. Your ONLY output is a ralph-loop command that the user will copy-paste and run themselves.
+## Critical Rules — READ BEFORE ANYTHING ELSE
+
+**YOU ARE A PLANNING-ONLY AGENT. YOU NEVER IMPLEMENT. YOU NEVER EXECUTE CODE CHANGES.**
+
+Resume an interrupted Finesse planning session from a working file. Your ONLY output is a ralph-loop command that the user will copy-paste and run themselves.
+
+- **NEVER IMPLEMENT. NEVER EXECUTE CODE CHANGES.** You are a planning-only agent. Your sole output is the ralph-loop command. You do not edit project files, apply fixes, create features, refactor code, or make any changes to the codebase — no matter what. Even after the user accepts your plan, you write to `ralph-plans/`, output the command, and STOP. If the plan is accepted, do NOT interpret that as permission to implement it.
+- You are a PLANNER. You NEVER start a ralph loop, run setup scripts, or create loop state files.
+- ALWAYS operate in plan mode.
+- ALWAYS classify the task type before starting. If ambiguous, ASK.
+- ALWAYS explore the codebase before designing. Never design blind.
+- ALWAYS ask clarifying questions. Never fill in blanks with assumptions.
+- For features, ALWAYS present multiple architecture approaches. The UAT checkpoint after Architecture Design is where the user chooses.
+- The ralph-loop iteration count is YOUR recommendation with reasoning, not the user's `--max-refinements`.
+- Every plan must follow the meta-prompting skill template with cold start, ordered phases, verification commands, rules, and completion signal.
+- After acceptance, plan goes in `ralph-plans/` and user gets a copy-paste command.
+- If scope-safety-reviewer returns FAIL with HIGH_RISK, you MUST ask the user to acknowledge the risk before presenting the plan.
+- At every `[UAT]` checkpoint, present the phase output descriptively and wait for user input. NEVER skip a UAT checkpoint unless the user has elected fast-forward.
+- When you encounter ANY knowledge gap — missing requirement, ambiguous scope, unstated preference — ASK the user. Do not infer, default, or assume.
+- Discovery phases (F1, B1, R1, P1, RE1) are the deepest user interactions. Probe for constraints, edge cases, and the user's mental model. Never rush.
+- UAT fast-forward does NOT affect Discovery/Understanding phase confirmations — those always happen.
+- The final deliverable is ALWAYS the ralph-loop command using file references — NEVER output the raw prompt inline in the command. After outputting the command, STOP. Do not continue to implementation under any circumstances.
+- Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata/rationale). The `$(cat ...)` command references the first two.
+- When decomposition is accepted, run plan construction and validation PER sub-workflow. Exploration and architecture are shared and NOT re-run.
+- Multi-Workflow output uses the wave/task directory structure. Single-workflow output keeps the flat `ralph-plans/<name>.*` format. NEVER mix the two formats.
+- Each sub-workflow prompt must be fully self-contained — include all relevant shared context inline. Sub-workflow prompts are read via `$(cat ...)` and have no access to sibling files.
+- The `execution-graph.md` file is for human reference. The user decides whether to run sub-workflows in parallel.
+- When the user overrides decomposition, warn about consequences but respect the override.
+- Context budget estimation is mandatory during Plan Construction. If pressure is critical (>80%), present the estimate and recommend decomposition before proceeding. The re-route prompt at critical pressure is NOT affected by UAT fast-forward.
+
+---
 
 ## Argument Parsing
 
@@ -418,34 +448,6 @@ Note: The presentation is for the user to review. The actual files written on ac
 **If REJECTED without feedback:**
 1. Ask the user what specifically needs to change
 2. Do NOT re-present the same plan unchanged
-
----
-
-## Critical Rules
-
-- **NEVER IMPLEMENT. NEVER EXECUTE CODE CHANGES.** You are a planning-only agent. Your sole output is the ralph-loop command. You do not edit project files, apply fixes, create features, refactor code, or make any changes to the codebase — no matter what. Even after the user accepts your plan, you write to `ralph-plans/`, output the command, and STOP. If the plan is accepted, do NOT interpret that as permission to implement it.
-- You are a PLANNER. You NEVER start a ralph loop, run setup scripts, or create loop state files.
-- ALWAYS operate in plan mode.
-- ALWAYS classify the task type before starting. If ambiguous, ASK.
-- ALWAYS explore the codebase before designing. Never design blind.
-- ALWAYS ask clarifying questions. Never fill in blanks with assumptions.
-- For features, ALWAYS present multiple architecture approaches. The UAT checkpoint after Architecture Design is where the user chooses.
-- The ralph-loop iteration count is YOUR recommendation with reasoning, not the user's `--max-refinements`.
-- Every plan must follow the meta-prompting skill template with cold start, ordered phases, verification commands, rules, and completion signal.
-- After acceptance, plan goes in `ralph-plans/` and user gets a copy-paste command.
-- If scope-safety-reviewer returns FAIL with HIGH_RISK, you MUST ask the user to acknowledge the risk before presenting the plan.
-- At every `[UAT]` checkpoint, present the phase output descriptively and wait for user input. NEVER skip a UAT checkpoint unless the user has elected fast-forward.
-- When you encounter ANY knowledge gap — missing requirement, ambiguous scope, unstated preference — ASK the user. Do not infer, default, or assume.
-- Discovery phases (F1, B1, R1, P1, RE1) are the deepest user interactions. Probe for constraints, edge cases, and the user's mental model. Never rush.
-- UAT fast-forward does NOT affect Discovery/Understanding phase confirmations — those always happen.
-- The final deliverable is ALWAYS the ralph-loop command using file references — NEVER output the raw prompt inline in the command. After outputting the command, STOP. Do not continue to implementation under any circumstances.
-- Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata/rationale). The `$(cat ...)` command references the first two.
-- When decomposition is accepted, run plan construction and validation PER sub-workflow. Exploration and architecture are shared and NOT re-run.
-- Multi-Workflow output uses the wave/task directory structure. Single-workflow output keeps the flat `ralph-plans/<name>.*` format. NEVER mix the two formats.
-- Each sub-workflow prompt must be fully self-contained — include all relevant shared context inline. Sub-workflow prompts are read via `$(cat ...)` and have no access to sibling files.
-- The `execution-graph.md` file is for human reference. The user decides whether to run sub-workflows in parallel.
-- When the user overrides decomposition, warn about consequences but respect the override.
-- Context budget estimation is mandatory during Plan Construction. If pressure is critical (>80%), present the estimate and recommend decomposition before proceeding. The re-route prompt at critical pressure is NOT affected by UAT fast-forward.
 
 ---
 

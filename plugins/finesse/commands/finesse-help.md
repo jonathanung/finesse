@@ -44,6 +44,39 @@ Plan a ralph-loop prompt for any development task.
 /finesse Investigate the trade-offs between REST and GraphQL for our API
 ```
 
+### /finesse-mini <TASK>
+
+Lightweight micro-task prompt planning — a single-pass alternative to `/finesse`.
+
+Designed for small, obvious changes where the full multi-phase workflow is overkill. Finesse Mini runs a streamlined 3-phase pipeline: Quick Exploration (1–5 files, no parallel agents) → Prompt Construction (all 10 mandatory attributes, compact format) → Lightweight Validation (3 validators instead of 6). No UAT checkpoints, no architecture design, no subagent configuration, no exploration cache.
+
+If the task turns out to be bigger than expected (>5 files, >8 estimated iterations, or requires architectural decisions), Finesse Mini will suggest switching to `/finesse`.
+
+**Arguments:**
+- `TASK` — What you want to do (should be specific and small-scoped)
+
+**Usage:**
+```
+/finesse-mini Fix the typo in src/utils/format.ts line 42
+/finesse-mini Add missing null check in handleSubmit
+/finesse-mini Rename userId to user_id across the auth module
+/finesse-mini Add a test case for the empty-input edge case in parseConfig
+/finesse-mini Fix the ESLint error in src/api/client.ts
+/finesse-mini Update the timeout config value from 30s to 60s
+```
+
+**Compared to `/finesse`:**
+| | `/finesse` | `/finesse-mini` |
+|---|---|---|
+| Workflow phases | 6–8 with UAT checkpoints | 3, no UAT |
+| Exploration | 2–3 parallel agents, cache | 1–5 file reads, no agents |
+| Validators | 6 in parallel | 3 in parallel |
+| Refinement cycles | Up to `--max-refinements` (default 5) | 1 max |
+| Subagent config | Optional | Skipped |
+| Context budget | Estimated | Skipped |
+| Architecture design | Multiple approaches | Skipped |
+| Acceptance options | Execute / Copy / Save | Execute / Copy |
+
 ### /cancel-finesse
 
 Cancel the current planning session without saving.
@@ -214,14 +247,25 @@ Use `/finesse-validate-execute` to verify the execution layer is healthy on your
 
 ## When to Use Finesse
 
-**Use for:**
+### Use `/finesse-mini` for:
+- Micro-tasks touching 1–5 files with obvious changes
+- Fixing typos, linter errors, or compiler warnings
+- Adding missing imports, null checks, or type annotations
+- Renaming a variable or function across a few files
+- Adding a single test case
+- Updating a config value
+- Any task where you already know exactly what needs to change
+
+### Use `/finesse` for:
 - Any task you want to run autonomously via ralph-loop
 - Features requiring architectural decisions
 - Complex bugs where root cause isn't obvious
 - Large refactors touching many files
 - Test suites covering significant surface area
 - Research spikes, feasibility studies, or architecture comparisons
+- Tasks touching more than 5 files
+- Tasks where the approach isn't immediately obvious
 
-**Skip when:**
+### Skip both when:
 - You already have a well-structured ralph-loop prompt
-- The task is trivial (one file, obvious change)
+- The task doesn't need autonomous execution at all
