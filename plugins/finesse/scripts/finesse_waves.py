@@ -33,6 +33,54 @@ PLUGIN_ROOT = Path(__file__).resolve().parent.parent  # -> plugins/finesse/
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _kill_session_claude_processes(state: dict):
+    """Best-effort cleanup of orphaned claude processes in session worktrees.
+
+    After tmux sessions are killed, claude processes may survive if they
+    don't respond to SIGHUP. This finds any claude processes whose cwd
+    matches a session worktree and sends SIGTERM.
+
+    Linux-only (/proc-based). On macOS, tmux SIGHUP is typically sufficient.
+    """
+    worktree_paths = set()
+    for wave_data in state.get("waves", {}).values():
+        for wf in wave_data.get("workflows", {}).values():
+            path = wf.get("worktree_path")
+            if path:
+                worktree_paths.add(os.path.realpath(path))
+
+    if not worktree_paths or not Path("/proc").is_dir():
+        return
+
+    try:
+        result = subprocess.run(
+            ["pgrep", "-x", "claude"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return
+
+        for pid_str in result.stdout.strip().split("\n"):
+            pid_str = pid_str.strip()
+            if not pid_str:
+                continue
+            try:
+                pid = int(pid_str)
+                cwd = os.path.realpath(os.readlink(f"/proc/{pid}/cwd"))
+                if cwd in worktree_paths:
+                    os.kill(pid, signal.SIGTERM)
+            except (OSError, ValueError):
+                continue
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+
+
+# ---------------------------------------------------------------------------
 # GraphParser
 # ---------------------------------------------------------------------------
 
@@ -255,7 +303,7 @@ class WorktreeManager:
     def merge(self, branch: str, base_branch: str) -> tuple:
         """Merge a branch into the base branch.
 
-        Returns (success: bool, conflict_details: str).
+        Returns (success: bool, conflict_files: str, conflict_diff: str).
         """
         checkout_result = subprocess.run(
             ["git", "checkout", base_branch],
@@ -263,7 +311,7 @@ class WorktreeManager:
             text=True,
         )
         if checkout_result.returncode != 0:
-            return (False, f"Failed to checkout {base_branch}: {checkout_result.stderr.strip()}")
+            return (False, f"Failed to checkout {base_branch}: {checkout_result.stderr.strip()}", "")
 
         result = subprocess.run(
             ["git", "merge", branch, "--no-edit"],
@@ -272,15 +320,23 @@ class WorktreeManager:
         )
 
         if result.returncode == 0:
-            return (True, "")
+            return (True, "", "")
 
-        # Merge conflict — get conflicted files
+        # Merge conflict — capture diff before aborting (shows conflict markers)
+        diff_result = subprocess.run(
+            ["git", "diff"],
+            capture_output=True,
+            text=True,
+        )
+        conflict_diff = diff_result.stdout.strip()
+
+        # Get conflicted file list
         conflict_result = subprocess.run(
             ["git", "diff", "--name-only", "--diff-filter=U"],
             capture_output=True,
             text=True,
         )
-        conflict_details = conflict_result.stdout.strip()
+        conflict_files = conflict_result.stdout.strip()
 
         # Abort the failed merge
         subprocess.run(
@@ -289,7 +345,7 @@ class WorktreeManager:
             text=True,
         )
 
-        return (False, conflict_details)
+        return (False, conflict_files, conflict_diff)
 
     def cleanup_session(self, session: str):
         """Remove all worktrees and branches for a session."""
@@ -532,7 +588,10 @@ class HeadlessDetector:
     def detect(self) -> str:
         """Detect headless mode: 'hooks' or 'wrapper'.
 
-        Checks CONFIG_FILE cache first, then runs a quick test.
+        Checks CONFIG_FILE cache first. If no cache, defaults to 'hooks' mode
+        to avoid spending API credits on a detection test. The WaveOrchestrator
+        verifies hooks are working after launching the first wave and falls
+        back to 'wrapper' mode automatically if they aren't.
         """
         # Check cache
         if Path(CONFIG_FILE).is_file():
@@ -544,32 +603,14 @@ class HeadlessDetector:
             except (json.JSONDecodeError, OSError):
                 pass
 
-        # Run quick test
-        mode = self._run_detection_test()
-
-        # Cache result
+        # Default to hooks — verified on first wave launch
+        mode = "hooks"
         self._cache_result(mode)
         return mode
 
-    def _run_detection_test(self) -> str:
-        """Run a quick test to determine headless mode support."""
-        try:
-            test_promise = "FINESSE_HEADLESS_TEST"
-            result = subprocess.run(
-                ["claude", "-p", f"Output <promise>{test_promise}</promise>"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            # Check if run-log.json was created and shows completion
-            run_log_path = Path(".finesse/run-log.json")
-            if run_log_path.is_file():
-                run_log = json.loads(run_log_path.read_text())
-                if run_log.get("outcome") == "completed":
-                    return "hooks"
-        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError,
-                OSError):
-            pass
+    def fallback_to_wrapper(self) -> str:
+        """Switch to wrapper mode and update cache. Returns 'wrapper'."""
+        self._cache_result("wrapper")
         return "wrapper"
 
     def _cache_result(self, mode: str):
@@ -674,11 +715,13 @@ class WaveOrchestrator:
         """Handle SIGINT by setting shutdown flag and cleaning up tmux sessions."""
         print("\nReceived interrupt. Finishing current operations...")
         self._shutdown = True
-        # Kill tmux sessions to prevent orphaned Claude instances consuming credits
+        # Kill tmux sessions
         for wave_key, wave_data in self.state.get("waves", {}).items():
             tmux_name = wave_data.get("tmux_session")
             if tmux_name:
                 self.tmux_mgr.kill_session(tmux_name)
+        # Kill any orphaned claude processes that survived tmux SIGHUP
+        _kill_session_claude_processes(self.state)
 
     def dry_run(self) -> bool:
         """Display execution plan and ask for confirmation. Returns True if user confirms."""
@@ -810,7 +853,99 @@ class WaveOrchestrator:
 
         # Save state
         self.session_tracker.save(self.session, self.state)
-        print(f"\nWave {wave_num} launched. Attach with: tmux attach -t {tmux_name}")
+
+        # Verify hooks mode on first use — fall back to wrapper if hooks aren't firing
+        if mode == "hooks" and not self._shutdown:
+            if not self._verify_hooks_mode(wave_num):
+                print("  Hooks mode not responding. Falling back to wrapper mode...")
+                mode = self.headless_detector.fallback_to_wrapper()
+                self.state["headless_mode"] = mode
+                self._relaunch_wave(wave_num, mode)
+
+        print(f"\nWave {wave_num} launched. Attach with: tmux attach -t {self.state['waves'][wave_key].get('tmux_session', tmux_name)}")
+
+    def _verify_hooks_mode(self, wave_num: int, timeout: int = 90) -> bool:
+        """Verify hooks mode is working after launching a wave.
+
+        Polls run-log.json files for stop_hook activity (iterations > 0 or
+        an outcome). Returns True if any task shows activity within timeout.
+        Returns True immediately on shutdown to avoid interference.
+        """
+        wave_key = str(wave_num)
+        workflows = self.state["waves"][wave_key]["workflows"]
+
+        start = time.monotonic()
+        while time.monotonic() - start < timeout:
+            if self._shutdown:
+                return True
+
+            for wf in workflows.values():
+                worktree_path = wf.get("worktree_path")
+                if not worktree_path:
+                    continue
+                run_log_path = Path(worktree_path) / ".finesse" / "run-log.json"
+                if not run_log_path.is_file():
+                    continue
+                try:
+                    rl = json.loads(run_log_path.read_text())
+                    if rl.get("outcome"):
+                        return True
+                    if rl.get("iterations") and len(rl["iterations"]) > 0:
+                        return True
+                except (json.JSONDecodeError, OSError):
+                    pass
+
+            time.sleep(5)
+
+        return False
+
+    def _relaunch_wave(self, wave_num: int, mode: str):
+        """Kill current tmux session for a wave and re-launch tasks in a new mode.
+
+        Reuses existing worktrees — only the tmux session and launch commands change.
+        """
+        wave_key = str(wave_num)
+        wave_data = self.state["waves"][wave_key]
+
+        # Kill current tmux session
+        old_tmux = wave_data.get("tmux_session")
+        if old_tmux:
+            self.tmux_mgr.kill_session(old_tmux)
+
+        # Create new tmux session
+        tmux_name = self.tmux_mgr.create_session(
+            f"finesse-{self.session}-w{wave_num}"
+        )
+        wave_data["tmux_session"] = tmux_name
+
+        is_first_pane = True
+        for task_name, wf in wave_data["workflows"].items():
+            if self._shutdown:
+                break
+            if wf.get("status") != "running":
+                continue
+
+            worktree_path = wf.get("worktree_path")
+            if not worktree_path:
+                continue
+
+            # Read prompt for launch command
+            prompt_file = wf.get("prompt_file", "")
+            if prompt_file and Path(prompt_file).is_file():
+                prompt_text = Path(prompt_file).read_text().strip()
+            else:
+                prompt_text = f"Execute task: {task_name}"
+
+            launch_cmd = self.headless_detector.get_launch_command(
+                mode, prompt_text, worktree_path
+            )
+            self.tmux_mgr.add_pane(
+                tmux_name, launch_cmd, pane_name=task_name,
+                is_first=is_first_pane,
+            )
+            is_first_pane = False
+
+        self.session_tracker.save(self.session, self.state)
 
     def setup_worktree_state(self, worktree_path: str, task: dict) -> bool:
         """Set up finesse execution state files in a worktree.
@@ -961,10 +1096,20 @@ class WaveOrchestrator:
             branch = wf.get("branch", f"finesse/{task_name}")
             print(f"  Merging {branch} into {self.base_branch}...")
 
-            success, conflicts = self.worktree_mgr.merge(branch, self.base_branch)
+            success, conflicts, diff = self.worktree_mgr.merge(branch, self.base_branch)
             if not success:
                 print(f"  CONFLICT in {branch}:")
-                print(f"    {conflicts}")
+                if conflicts:
+                    print(f"    Conflicted files:")
+                    for f in conflicts.split("\n"):
+                        print(f"      {f}")
+                if diff:
+                    diff_lines = diff.split("\n")
+                    print(f"    Conflict diff (first 100 lines):")
+                    for line in diff_lines[:100]:
+                        print(f"      {line}")
+                    if len(diff_lines) > 100:
+                        print(f"      ... ({len(diff_lines) - 100} more lines)")
                 wf["merge_status"] = "conflict"
                 self.session_tracker.save(self.session, self.state)
                 return False
@@ -1163,6 +1308,9 @@ def cmd_cleanup(args):
         tmux_name = wave_data.get("tmux_session")
         if tmux_name:
             tmux_mgr.kill_session(tmux_name)
+
+    # Kill any orphaned claude processes that survived tmux SIGHUP
+    _kill_session_claude_processes(state)
 
     # Remove worktrees
     worktree_mgr.cleanup_session(session)

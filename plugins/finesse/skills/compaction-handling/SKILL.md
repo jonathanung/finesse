@@ -13,7 +13,7 @@ When a planning session is long, Claude Code may compact context. To ensure crit
    ```yaml
    ---
    mode: planning-only  # CRITICAL: Never edit source code. Never implement.
-   allowed_agents: [code-explorer, code-architect, task-decomposer, clarity-checker, completion-validator, scope-safety-reviewer, phase-structure-analyzer, failure-mode-auditor, goal-achievement-auditor]
+   allowed_agents: [code-explorer, code-architect, task-decomposer, clarity-checker, completion-validator, scope-safety-reviewer, phase-structure-analyzer, failure-mode-auditor, goal-achievement-auditor, exploration-orchestrator, scope-analyzer, architecture-designer, plan-constructor, plan-validator]
    task_type: <feature|bugfix|refactor|testing|performance|research>
    workflow: <feature-development|bug-fix|refactor-chore|testing|performance-optimization|research>
    current_phase: <phase code, e.g., F5, B3, RE4>
@@ -51,7 +51,7 @@ When a planning session is long, Claude Code may compact context. To ensure crit
    ```markdown
    ## Session Constraints (DO NOT DELETE)
    - PLANNING-ONLY session. Output is a ralph-loop command. NEVER edit source code.
-   - Task agents ONLY for: code-explorer, code-architect, task-decomposer, and 6 validation agents
+   - Task agents ONLY for: code-explorer, code-architect, task-decomposer, 6 validation agents, and 5 orchestrator agents (exploration-orchestrator, scope-analyzer, architecture-designer, plan-constructor, plan-validator)
    - Write ONLY to finesse-plans/ and .finesse/
    - NEXT ACTION: [describe the current/next phase step]
    - DO NOT: edit source files, launch general-purpose agents, implement the plan

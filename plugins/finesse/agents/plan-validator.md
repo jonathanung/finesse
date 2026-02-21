@@ -61,7 +61,7 @@ After validation passes (or budget is exhausted), run 4 environment checks:
 
 **1. Execution layer health**: Check if `/finesse-validate-execute` is available and functional.
 - Look for the command definition at `plugins/finesse/commands/finesse-validate-execute.md`
-- Check for the setup script at `plugins/finesse/scripts/finesse_setup.sh`
+- Check for the setup script at `plugins/finesse/scripts/finesse_execute.py`
 - Check for the stop hook at `plugins/finesse/hooks/stop_hook.py`
 - If all exist: `execution_layer_healthy = true`
 - If any missing: `execution_layer_healthy = false`, record details

@@ -26,16 +26,17 @@ SESSION_TTL = 7200  # 2 hours — ignore stale markers from old sessions
 LOG_PREFIX = "[finesse:phase-gate]"
 
 # Minimum phases that MUST be in completed_phases before ExitPlanMode is allowed.
-# These are the phases BEFORE the final Validation+Presentation phase.
-# The presentation phase itself uses ExitPlanMode, so it's excluded.
+# Includes validation phases — the planner must mark validation complete in the
+# working file AFTER plan-validator returns and BEFORE calling ExitPlanMode.
+# Presentation phases are excluded (ExitPlanMode IS the presentation).
 # Optional phases (Clarifying Questions) are omitted — they may genuinely have none.
 REQUIRED_PHASES = {
-    "feature": ["F1", "F2", "F3", "F5", "F6"],
-    "bugfix": ["B1", "B2", "B3", "B4", "B5", "B6"],
-    "refactor": ["R1", "R2", "R3", "R4", "R5", "R6"],
-    "testing": ["T1", "T2", "T3", "T5"],
-    "performance": ["P1", "P2", "P3", "P4", "P5"],
-    "research": ["RE1", "RE2", "RE3", "RE4", "RE5", "RE6"],
+    "feature": ["F1", "F2", "F3", "F5", "F6", "F7"],
+    "bugfix": ["B1", "B2", "B3", "B4", "B5", "B6", "B7"],
+    "refactor": ["R1", "R2", "R3", "R4", "R5", "R6", "R7"],
+    "testing": ["T1", "T2", "T3", "T5", "T6"],
+    "performance": ["P1", "P2", "P3", "P4", "P5", "P6"],
+    "research": ["RE1", "RE2", "RE3", "RE4", "RE5", "RE6", "RE7"],
 }
 
 
