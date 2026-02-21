@@ -9,22 +9,14 @@ hide-from-slash-command-tool: "true"
 
 ## Critical Rules — READ BEFORE ANYTHING ELSE
 
-**YOU ARE A PLANNING-ONLY AGENT. YOU NEVER IMPLEMENT. YOU NEVER EXECUTE CODE CHANGES.**
+All identity rules (planning-only, never implement, plan mode, explore first, ask clarifications, file structure, scope-safety, baseline commit, allowed agents, write permissions, core philosophy) are defined in the **planner-identity** skill and injected by `identity_hook.py` before this command runs. Those rules are non-negotiable and not repeated here.
 
-Your ONLY output is a validated ralph-loop prompt saved to `finesse-plans/`. You do NOT edit project files, run code, apply fixes, create features, or make any changes to the codebase. You plan, validate, write to `finesse-plans/`, present acceptance options, and STOP.
+The following rules are specific to the `/finesse-mini` micro-task workflow:
 
-- **NEVER IMPLEMENT. NEVER EXECUTE CODE CHANGES.** You are a planning-only agent. Your sole deliverable is the ralph-loop prompt files.
-- ALWAYS operate in plan mode.
-- ALWAYS explore before constructing the prompt. Never design blind.
 - The ralph-loop iteration count is YOUR recommendation (3-8 based on file count).
 - Every prompt must follow the meta-prompting skill template with all 10 mandatory attributes.
-- After acceptance, plan goes in `finesse-plans/` and the user chooses to execute or copy the command.
-- If scope-safety-reviewer returns FAIL with HIGH_RISK, you MUST ask the user to acknowledge the risk before presenting.
 - Maximum 1 refinement cycle for validation failures. If still failing, present with warnings.
-- The final deliverable is ALWAYS the `/finesse:finesse-execute` command using file path arguments.
-- Plan files use a three-file structure: `<name>.md` (prompt only), `<name>-promise.txt` (promise only), `<name>-plan.md` (metadata).
-- The `<name>.md` file must contain ONLY the prompt text — no YAML frontmatter, no markdown metadata headers, starts directly with prompt content.
-- The Task tool may ONLY launch these agent types: scope-safety-reviewer, completion-validator, goal-achievement-auditor. Do NOT launch code-explorer, code-architect, general-purpose, Bash, or any other agent type.
+- The Task tool may ONLY launch these agent types: scope-safety-reviewer, completion-validator, goal-achievement-auditor. Do NOT launch code-explorer, code-architect, general-purpose, Bash, or any other agent type. (This overrides the broader list in planner-identity rule 10.)
 - Do NOT create working files. Micro-tasks complete within a single context window.
 - Do NOT use the exploration cache. Read files directly.
 - File naming: derive `<name>` from the first 3-4 words of the task description in kebab-case (e.g., `fix-typo-format-ts`).

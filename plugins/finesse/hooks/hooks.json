@@ -1,6 +1,17 @@
 {
-  "description": "Finesse execution loop stop hook. Intercepts session exit to re-feed the prompt for iterative development.",
+  "description": "Finesse plugin hooks: planner identity enforcement and execution loop",
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/identity_hook.py"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

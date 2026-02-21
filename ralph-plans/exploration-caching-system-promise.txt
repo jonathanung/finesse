@@ -1,1 +1,0 @@
-Exploration caching system added to Finesse v0.6.0
