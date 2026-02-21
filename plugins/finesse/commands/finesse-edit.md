@@ -32,9 +32,8 @@ Before calling ExitPlanMode, verify:
 2. Current plan presented to user (Step 3)
 3. Edit instructions collected (Step 3)
 4. Edits applied with diff summary generated (Step 4)
-5. ALL 6 validation agents launched in parallel (Step 5)
+5. Validation + pre-flight via plan-validator agent (Step 5)
 6. All CRITICAL and HIGH validation issues resolved (Step 5)
-7. Pre-flight validation run (Step 6)
 
 If ANY step was skipped, STOP and return to the first skipped step.
 
@@ -146,68 +145,19 @@ If the user selects "Cancel edit" at any point: say "Edit cancelled." and stop.
 3. **Generate a diff summary** comparing the pre-edit and post-edit prompt text. See Diff Summary Format below.
 4. If the promise text was also changed, note this in the diff summary.
 
-## Step 5: Validation
+## Step 5: Validation & Pre-flight
 
-Launch ALL 6 validation agents in parallel via the Task tool. Pass the full edited prompt text to each agent:
+Delegate validation and pre-flight checks to the **plan-validator** agent via the Task tool. Pass the full edited prompt text, promise text, and `--max-refinements` budget. The agent:
 
-1. **clarity-checker** — requirements unambiguous for autonomous agent
-2. **completion-validator** — binary criteria, explicit promise
-3. **scope-safety-reviewer** — scope, guardrails, safety
-4. **phase-structure-analyzer** — cold start, phases, verification commands
-5. **failure-mode-auditor** — stuck-state recovery, anti-thrashing
-6. **goal-achievement-auditor** — goal achievement, truth coverage, dependency flow
+1. Launches all 6 validation agents in parallel (clarity-checker, completion-validator, scope-safety-reviewer, phase-structure-analyzer, failure-mode-auditor, goal-achievement-auditor)
+2. Classifies verdicts by severity tier (CRITICAL > HIGH > MEDIUM > LOW)
+3. Fixes issues within the refinement budget (CRITICAL and HIGH must be resolved before presenting)
+4. Runs 4 pre-flight checks (execution layer health, git tracking, scoped file existence, verification command runnability)
+5. Returns consolidated results with per-agent verdicts, any revised prompt text, unresolved warnings, pre-flight warnings, and `execution_layer_healthy` status
 
-All agents use the same verdict vocabulary: `PASS`, `FAIL`, or `NEEDS_REWORK`.
+If the plan-validator reports issues requiring user input, present those to the user and re-delegate.
 
-### Severity Tiers
-
-| Tier | Condition | Behavior |
-|------|-----------|----------|
-| **CRITICAL** | scope-safety-reviewer returns `FAIL` | Blocks presentation unconditionally. Must fix before presenting. |
-| **HIGH** | clarity-checker, phase-structure-analyzer, or completion-validator returns `FAIL` | Blocks presentation. Must fix before presenting. |
-| **MEDIUM** | goal-achievement-auditor or failure-mode-auditor returns `FAIL` | Should fix within refinement budget. Can present with explicit warnings if budget exhausted. |
-| **LOW** | Any agent returns `NEEDS_REWORK` | Fix if budget allows after higher tiers resolved. |
-
-### Handling Verdicts
-
-- **All PASS**: Proceed to pre-flight validation.
-- **Any CRITICAL or HIGH issues**: Must fix before presenting. Issues requiring user input → ask the user. Issues fixable by you → fix directly.
-- **Any MEDIUM issues**: Fix within refinement budget. If budget exhausted, present with explicit warnings listing each issue, its tier, and which agent flagged it.
-- **Any LOW issues**: Fix if budget allows after all higher-tier issues are resolved.
-
-When refinement budget drops below 50% remaining, prioritize CRITICAL and HIGH issues exclusively.
-
-Each fix-and-revalidate cycle costs one refinement iteration against the `--max-refinements` budget. When revalidating after fixes, re-run ALL 6 agents to catch regressions.
-
-If budget exhausted with only MEDIUM/LOW unresolved: present with explicit warnings.
-
-If budget exhausted with unresolved CRITICAL/HIGH: present with BLOCKING warnings and explicitly ask the user whether to proceed.
-
-## Step 6: Pre-flight Validation
-
-Run 4 pre-flight checks (advisory, not blocking except execution layer health):
-
-**1. Execution layer health**: Run `/finesse-validate-execute` using the Skill tool.
-- Exit code 0: Set `execution_layer_healthy = true`.
-- Exit code 1: Set `execution_layer_healthy = false`. Record the failure details as a pre-flight warning.
-
-**2. Git tracking**: Run `git rev-parse --git-dir` via Bash.
-- Success: Git tracking confirmed.
-- Failure: Record warning: "Workspace is not git-tracked. The execution layer captures a pre-execution git hash for retro — this will fail without git."
-
-**3. Scoped file existence**: Extract file paths from the edited prompt's scope constraints section. For each path, verify it exists using Glob.
-- Missing files: Record warning for each: "Scoped file not found: [path]."
-
-**4. Verification command runnability**: Extract verification commands from phase `Verify:` lines. Check plausibility:
-- `npm/npx/yarn/pnpm`: check `package.json` exists
-- `make`: check `Makefile` exists with target
-- `pytest/python`: check `pyproject.toml` or `setup.py`/`setup.cfg` exists
-- `cargo`: check `Cargo.toml` exists
-- `go`: check `go.mod` exists
-- Others: skip
-- Record warning for unverifiable commands.
-
-Collect all warnings into a `pre_flight_warnings` list.
+If budget exhausted with only MEDIUM/LOW unresolved: present with explicit warnings. If unresolved CRITICAL/HIGH: present with BLOCKING warnings and ask the user whether to proceed.
 
 ## Step 7: Presentation
 
@@ -264,12 +214,9 @@ For multi-workflow sub-tasks:
 **STOP HERE.** After handling the user's acceptance option, your job is done. Do NOT proceed to implement the plan.
 
 **If REJECTED with feedback:**
-1. Reset refinement counter to 0.
-2. Snapshot the current prompt text as the **pre-edit version**.
-3. Make **targeted edits** to the prompt based on the feedback — do NOT rebuild from scratch.
-4. Generate a **new diff summary** comparing the pre-edit and post-edit prompt text.
-5. Re-validate ALL 6 agents on the revised prompt.
-6. Re-present via ExitPlanMode with the new diff summary included. Repeat until accepted.
+1. Reset refinement counter, snapshot current prompt, make targeted edits (do NOT rebuild).
+2. Generate a new diff summary, re-validate via **plan-validator** agent.
+3. Re-present via ExitPlanMode with the diff summary. Repeat until accepted.
 
 **If REJECTED without feedback:**
 1. Ask the user what specifically needs to change.
@@ -279,21 +226,4 @@ For multi-workflow sub-tasks:
 
 ## Diff Summary Format
 
-When generating a diff summary, compare the pre-edit and post-edit text and produce a concise bulleted list of semantic changes. This is NOT a unified diff — it is a human-readable summary.
-
-**Rules:**
-- Start each bullet with a prescribed action verb: **Added**, **Removed**, **Changed**, **Moved**, **Replaced**, **Tightened**, **Relaxed**, **Merged**, **Split**
-- Use natural phrasing after the verb — no rigid template
-- Include before/after values when relevant (e.g., "Changed Phase 2 verification command from `npm test` to `npm run test:integration`")
-- Group bullets by section when there are many changes (e.g., "Cold start", "Phase 2", "Rules", "Completion criteria")
-- Omit sections with no changes
-- Keep each bullet to one line
-- Maximum 15 bullets — if more changes exist, summarize the remainder as "... and N additional minor edits"
-
-**Examples:**
-- Added guardrail: Do NOT modify config files
-- Changed Phase 2 verification command from `npm test` to `npm run test:integration`
-- Increased max-iterations recommendation from 12 to 15 with reasoning
-- Added new Phase 3 for database migration
-- Removed scope constraint on `src/legacy/` directory
-- Tightened completion criteria to require all linter warnings resolved, not just errors
+For diff summary rules and format, follow the **uat-procedure** skill's Diff Summary Format section. In brief: bulleted list of semantic changes using prescribed action verbs (Added, Removed, Changed, Moved, Replaced, Tightened, Relaxed, Merged, Split), max 15 bullets.

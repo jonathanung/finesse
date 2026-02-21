@@ -247,6 +247,17 @@ Discovery phases (marked `(deep)`) always require full confirmation, even if UAT
 | failure-mode-auditor | Are stuck-state recovery and anti-thrashing rules present? |
 | goal-achievement-auditor | Does the prompt achieve the stated goal? Truth coverage + dependency flow |
 
+### Orchestration Agents
+These agents wrap the planning and validation agents above, providing focused context for each phase of the workflow. The orchestrator (`finesse.md`) delegates to them via the Task tool.
+
+| Agent | Delegates To | Role |
+|---|---|---|
+| exploration-orchestrator | code-explorer (1-3 instances) | Orchestrates codebase exploration, manages exploration cache |
+| scope-analyzer | code-architect (decomposition mode) + task-decomposer | Analyzes task scope, determines decomposition needs |
+| architecture-designer | code-architect (2-3 instances, different focuses) | Launches multiple architects, synthesizes approaches |
+| plan-constructor | *(does its own work)* | Builds ralph-loop prompt with all 10 mandatory attributes |
+| plan-validator | All 6 validation agents + pre-flight checks | Validates prompt, aggregates verdicts by severity tier |
+
 ## Output
 
 Accepted plans are saved as three files in `finesse-plans/`:
