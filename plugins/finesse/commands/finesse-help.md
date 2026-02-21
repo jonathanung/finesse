@@ -215,8 +215,9 @@ Single-workflow tasks still use the flat `finesse-plans/<name>.md` format.
 If you reject a plan with feedback:
 - Finesse's refinement counter resets
 - Subsequent passes make targeted edits (the skeleton is already built)
+- A "What changed since last review:" diff summary shows exactly what was revised (bulleted list of semantic changes)
 - All 6 validators re-run on the revised plan
-- You see the revised plan for another round of approval
+- You see the revised plan with the diff summary above validation results for another round of approval
 
 ## Resuming Sessions
 

@@ -187,8 +187,9 @@ The plan file must contain:
 2. **Files identified** — from exploration
 3. **The full ralph-loop prompt**
 4. **Recommended `--max-iterations`** with reasoning
-5. **Unresolved warnings** (if any from validation)
-6. **The exact `/finesse:finesse-execute` command to run**
+5. **What changed** (re-presentations only — omit on first presentation). Display the prompt diff summary generated during the rejection handling procedure, under the heading "What changed since last review:". This appears above validation warnings so the user sees what was revised before reviewing validation results. See diff summary rules in the rejection handling section below.
+6. **Unresolved warnings** (if any from validation)
+7. **The exact `/finesse:finesse-execute` command to run**
 
 ---
 
@@ -216,9 +217,11 @@ The plan file must contain:
 **STOP HERE.** After handling the user's acceptance option, your job is done. Do NOT proceed to implement the plan.
 
 **If REJECTED with feedback:**
-1. Make targeted edits to the prompt — do NOT rebuild from scratch.
-2. Re-validate all 3 agents on the revised plan.
-3. Re-present. This counts as a refinement cycle.
+1. Snapshot the current prompt text as the **pre-edit version** — hold it in context for diff generation.
+2. Make targeted edits to the prompt — do NOT rebuild from scratch.
+3. Generate a **prompt diff summary** comparing the pre-edit and post-edit prompt text. Rules: start each bullet with a prescribed action verb (Added, Removed, Changed, Moved, Replaced, Tightened, Relaxed, Merged, Split), use natural phrasing, include before/after values when relevant, max 15 bullets. The planning agent generates this inline — no separate agent needed.
+4. Re-validate all 3 agents on the revised plan.
+5. Re-present via ExitPlanMode with the diff summary included as item 5 in the presentation format. This counts as a refinement cycle.
 
 **If REJECTED without feedback:**
 1. Ask the user what specifically needs to change.

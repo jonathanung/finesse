@@ -96,5 +96,5 @@ When the goal-achievement-auditor identifies issues that require user input:
 - When budget drops below 50% remaining: prioritize CRITICAL and HIGH exclusively
 - Budget exhausted with unresolved MEDIUM/LOW only: present with explicit warnings listing each unresolved issue, its severity tier, and which agent flagged it
 - CRITICAL or HIGH issues should never remain unresolved (they are mandatory), but if budget is exhausted with unresolved CRITICAL/HIGH: present with BLOCKING warnings and explicitly ask the user whether to proceed
-- On user rejection with feedback: budget resets to 0, but make targeted edits (the skeleton is already built — don't rebuild from scratch)
+- On user rejection with feedback: budget resets to 0, but make targeted edits (the skeleton is already built — don't rebuild from scratch). Before re-validation, generate a prompt diff summary comparing pre-edit and post-edit prompt text — see the rejection handling procedure in finesse.md / finesse-mini.md for format and rules.
 

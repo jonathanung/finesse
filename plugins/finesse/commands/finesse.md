@@ -131,8 +131,8 @@ Use `AskUserQuestion` with these 4 options:
 ### 3. Handle the response
 
 - **Accept**: Proceed to the next phase.
-- **Provide feedback**: The user gives free-text feedback. Re-run the phase from scratch, incorporating their feedback as additional constraints. Present the revised output at the same UAT checkpoint again.
-- **Make specific changes**: The user specifies targeted edits (e.g., "change the database from PostgreSQL to SQLite in the architecture"). Apply the edits directly to the phase output without re-running the full phase. Present the revised output at the same UAT checkpoint again.
+- **Provide feedback**: The user gives free-text feedback. Snapshot the current phase output, then re-run the phase from scratch incorporating their feedback as additional constraints. Generate a **diff summary** comparing the pre-feedback and post-feedback phase output (see Diff Summary Format below). Present the revised output at the same UAT checkpoint again, with the diff summary included under a "What changed since last review:" heading above the phase output.
+- **Make specific changes**: The user specifies targeted edits (e.g., "change the database from PostgreSQL to SQLite in the architecture"). Snapshot the current phase output, then apply the edits directly without re-running the full phase. Generate a **diff summary** comparing the pre-edit and post-edit phase output (see Diff Summary Format below). Present the revised output at the same UAT checkpoint again, with the diff summary included under a "What changed since last review:" heading above the phase output.
 - **Accept and skip remaining UAT**: Note that UAT is fast-forwarded. For all subsequent `[UAT]` phases, auto-accept and proceed without presenting the checkpoint. Discovery/Understanding phase confirmations are NOT affected by fast-forward — those always happen.
 
 ### UAT replaces inline confirmations
@@ -140,6 +140,28 @@ Use `AskUserQuestion` with these 4 options:
 Previous inline confirmation gates within `[UAT]`-marked phases (e.g., "Present the strategy. Confirm with user." or "Ask which approach the user prefers.") are now handled by the UAT checkpoint at the end of that phase. Do NOT ask for confirmation mid-phase AND at the UAT checkpoint — that would double-gate. The UAT checkpoint IS the confirmation.
 
 **Exception**: Discovery/Understanding phases (F1, B1, R1, P1, RE1) are NOT UAT-gated. They retain their own deeper confirmation flow because Discovery requires iterative back-and-forth, not a single accept/reject gate.
+
+### Diff Summary Format
+
+When generating a diff summary (for UAT feedback cycles or plan rejection cycles), compare the pre-edit and post-edit text and produce a concise bulleted list of semantic changes. This is NOT a unified diff — it is a human-readable summary.
+
+**Rules:**
+- Start each bullet with a prescribed action verb: **Added**, **Removed**, **Changed**, **Moved**, **Replaced**, **Tightened**, **Relaxed**, **Merged**, **Split**
+- Use natural phrasing after the verb — no rigid template
+- Include before/after values when relevant (e.g., "Changed Phase 2 verification command from `npm test` to `npm run test:integration`")
+- Group bullets by section when there are many changes (e.g., "Cold start", "Phase 2", "Rules", "Completion criteria")
+- Omit sections with no changes
+- Keep each bullet to one line
+- Maximum 15 bullets — if more changes exist, summarize the remainder as "... and N additional minor edits"
+- The diff summary is generated inline by comparing the two versions already in context. No separate agent or script is needed.
+
+**Examples:**
+- Added guardrail: Do NOT modify config files
+- Changed Phase 2 verification command from `npm test` to `npm run test:integration`
+- Increased max-iterations recommendation from 12 to 15 with reasoning
+- Added new Phase 3 for database migration
+- Removed scope constraint on `src/legacy/` directory
+- Tightened completion criteria to require all linter warnings resolved, not just errors
 
 ---
 
@@ -289,9 +311,10 @@ Present the plan via ExitPlanMode. The plan file must contain:
 5. **Recommended `--max-iterations`** with reasoning
 6. **Context budget estimate** — pressure rating, file breakdown (count per category), estimated cost range, and disclaimer
 7. **`--completion-promise`** text
-8. **Unresolved warnings** (if any from validation)
-9. **Pre-flight warnings** (if any from pre-flight validation)
-10. **The exact /finesse:finesse-execute command to run** (using file references — see User Decision below)
+8. **What changed** (re-presentations only — omit on first presentation). Display the prompt diff summary generated during the rejection handling procedure, under the heading "What changed since last review:". This appears above validation warnings so the user sees what was revised before reviewing validation results. See Diff Summary Format above.
+9. **Unresolved warnings** (if any from validation)
+10. **Pre-flight warnings** (if any from pre-flight validation)
+11. **The exact /finesse:finesse-execute command to run** (using file references — see User Decision below)
 
 Note: The presentation is for the user to review. The actual files written on acceptance are described under User Decision.
 
@@ -346,9 +369,13 @@ Note: The presentation is for the user to review. The actual files written on ac
 
 **If REJECTED with feedback:**
 1. Reset refinement counter to 0
-2. Make **targeted edits** to the existing plan — do NOT rebuild from scratch
-3. Re-validate ALL 6 agents on the revised plan
-4. Re-present. Repeat until accepted.
+2. Snapshot the current prompt text as the **pre-edit version** — hold it in context for diff generation
+3. Make **targeted edits** to the existing plan — do NOT rebuild from scratch
+4. Generate a **prompt diff summary** comparing the pre-edit and post-edit prompt text (see Diff Summary Format section above for rules and examples)
+5. Re-validate ALL 6 agents on the revised plan
+6. Re-present via ExitPlanMode with the diff summary included as item 8 in the presentation format. Repeat until accepted.
+
+**Note**: This diff summary pattern also applies to `/finesse-edit` if that command is implemented.
 
 **If REJECTED without feedback:**
 1. Ask the user what specifically needs to change
