@@ -176,6 +176,30 @@ Cancel an active Finesse execution loop. Saves telemetry to `.finesse/run-log.js
 
 Validate the Finesse execution layer. Runs 63 structural and functional checks against the setup script, stop hook, hook registration, and command definitions. Exit code 0 = all checks pass.
 
+### /finesse-waves <subcommand> [session-name]
+
+Wave execution orchestration for multi-workflow plans. Launches parallel sub-workflows in isolated git worktrees via tmux, monitors completion, and handles merge reconciliation.
+
+This command outputs terminal commands for you to run directly — the orchestrator runs outside Claude Code.
+
+**Subcommands:**
+- `start <session-name>` — Parse execution-graph.md, show dry-run confirmation, launch wave 1
+- `status` — Show status of all active wave sessions
+- `attach <session-name>` — Attach to the tmux session for observation
+- `stop <session-name>` — Gracefully stop, wait for current iterations, save telemetry
+- `cleanup <session-name>` — Remove worktrees and tmux sessions for a completed session
+- `merge <session-name>` — Manually trigger merge reconciliation after conflict resolution
+
+**Usage:**
+```
+/finesse-waves start my-api-project
+/finesse-waves status
+/finesse-waves attach my-api-project
+/finesse-waves stop my-api-project
+/finesse-waves cleanup my-api-project
+/finesse-waves merge my-api-project
+```
+
 ## What Happens
 
 1. **Task type detection** — Finesse classifies your task (feature, bugfix, refactor, testing, performance, research)
@@ -283,6 +307,8 @@ Finesse caches codebase exploration findings in `.finesse/exploration-cache.json
 Finesse ships its own execution layer and no longer requires the ralph-wiggum plugin as a separate install. The execution layer includes a setup script, stop hook, and per-iteration telemetry for post-execution retrospectives via `/finesse-retro`.
 
 Use `/finesse-validate-execute` to verify the execution layer is healthy on your machine.
+
+For multi-workflow plans, use `/finesse-waves` to launch parallel wave execution instead of manually running each sub-workflow.
 
 ## When to Use Finesse
 

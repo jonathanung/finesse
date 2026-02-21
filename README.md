@@ -205,6 +205,8 @@ When you accept a plan, Finesse:
 
 Metadata and rationale live in the separate `-plan.md` (or `plan.md`) file.
 
+For automated wave execution with parallel worktrees, tmux session management, and merge reconciliation, use the `/finesse-waves` command instead of manually running each sub-workflow.
+
 ## Plan Rejection & Iteration
 
 If you reject a plan:
