@@ -231,6 +231,9 @@ def main():
     completion_promise = frontmatter.get("completion_promise", "null")
     if completion_promise == "null":
         completion_promise = ""
+    else:
+        # Normalize whitespace to match extract_promise_text() normalization
+        completion_promise = re.sub(r"\s+", " ", completion_promise.strip())
 
     # Check max iterations
     if max_iterations > 0 and iteration >= max_iterations:

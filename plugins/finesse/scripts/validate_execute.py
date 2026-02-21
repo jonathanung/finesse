@@ -187,10 +187,34 @@ def check_command_frontmatter():
         record(f"Command {filename}: references '{tool_ref}'", has_tool_ref)
 
 
+def check_hook_scripts():
+    """Verify hook scripts exist, compile, and have correct structure."""
+    hook_scripts = [
+        HOOKS_DIR / "identity_hook.py",
+        HOOKS_DIR / "phase_gate_hook.py",
+        HOOKS_DIR / "stop_hook.py",
+    ]
+    for pf in hook_scripts:
+        record(f"Hook exists: {pf.name}", pf.is_file(), f"Missing: {pf}")
+        if not pf.is_file():
+            continue
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "py_compile", str(pf)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            record(f"Hook compiles: {pf.name}", result.returncode == 0, result.stderr)
+        except subprocess.TimeoutExpired:
+            record(f"Hook compiles: {pf.name}", False, "Timeout")
+
+
 def check_no_external_deps():
     """Verify Python scripts only use stdlib modules."""
     allowed_top_level = {
         "argparse",
+        "glob",
         "json",
         "os",
         "random",
@@ -214,6 +238,8 @@ def check_no_external_deps():
         SCRIPTS_DIR / "finesse_execute.py",
         SCRIPTS_DIR / "finesse_waves.py",
         HOOKS_DIR / "stop_hook.py",
+        HOOKS_DIR / "identity_hook.py",
+        HOOKS_DIR / "phase_gate_hook.py",
     ]
 
     for pf in py_files:
@@ -837,6 +863,61 @@ def test_hook_noop_when_no_state(tmpdir):
     )
 
 
+@run_in_tmpdir
+def test_hook_promise_whitespace_normalization(tmpdir):
+    """Stop hook matches promise despite extra whitespace in <promise> tags."""
+    os.makedirs(".finesse", exist_ok=True)
+    Path(".finesse/loop-state.md").write_text(
+        '---\nactive: true\niteration: 2\nmax_iterations: 10\n'
+        'completion_promise: "ALL TESTS PASS"\nstarted_at: "2025-01-01T00:00:00Z"\n'
+        'prompt_source: "inline"\npromise_source: "inline"\n'
+        'plan_name: "test"\n---\n\nFix the tests\n'
+    )
+    Path(".finesse/run-log.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "plan_name": "test",
+                "prompt_source": "inline",
+                "promise_source": "inline",
+                "max_iterations": 10,
+                "completion_promise": "ALL TESTS PASS",
+                "started_at": "2025-01-01T00:00:00+00:00",
+                "finished_at": None,
+                "final_iteration": None,
+                "outcome": None,
+                "pre_execution": {"git_hash": "abc123", "git_dirty": False},
+                "iterations": [],
+            }
+        )
+    )
+
+    # Promise with extra whitespace that should still match after normalization
+    transcript = Path(tmpdir) / "transcript.jsonl"
+    transcript.write_text(
+        '{"role":"assistant","message":{"content":[{"type":"text","text":"Done! <promise>  ALL  TESTS  PASS  </promise>"}]}}\n'
+    )
+
+    hook_input = json.dumps({"transcript_path": str(transcript)})
+
+    result = subprocess.run(
+        [sys.executable, str(HOOKS_DIR / "stop_hook.py")],
+        input=hook_input,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    record("Func: hook exits 0 on whitespace-variant promise", result.returncode == 0)
+
+    has_no_block = "block" not in result.stdout
+    record(
+        "Func: hook matches promise despite extra whitespace",
+        has_no_block,
+        f"Got stdout: {result.stdout[:80]}" if not has_no_block else "",
+    )
+
+
 # ─── Runner ──────────────────────────────────────────────────────────────────
 
 
@@ -850,6 +931,7 @@ def main():
     print("-" * 50)
     check_files_exist()
     check_python_compiles()
+    check_hook_scripts()
     check_hooks_json()
     check_command_frontmatter()
     check_no_external_deps()
@@ -876,6 +958,7 @@ def main():
     test_hook_detects_promise()
     test_hook_stops_at_max_iterations()
     test_hook_noop_when_no_state()
+    test_hook_promise_whitespace_normalization()
 
     # Summary
     total = len(results)

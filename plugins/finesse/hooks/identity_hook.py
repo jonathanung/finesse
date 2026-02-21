@@ -130,9 +130,17 @@ def main():
     # First invocation — block with identity rules
     identity = read_identity()
     if identity is None:
-        # Graceful degradation: approve with warning if identity file unreadable
-        log(f"WARNING: could not read identity file at {IDENTITY_FILE}")
-        result = {"decision": "approve"}
+        # Fail closed: block the command if identity file is unreadable.
+        # Approving without identity rules defeats the guardrail's purpose.
+        log(f"ERROR: could not read identity file at {IDENTITY_FILE}")
+        result = {
+            "decision": "block",
+            "reason": (
+                f"Finesse identity rules could not be loaded (file not found: {IDENTITY_FILE}). "
+                "The planning command cannot proceed without identity rules. "
+                "Check that the Finesse plugin is installed correctly."
+            ),
+        }
         print(json.dumps(result))
         sys.exit(0)
 

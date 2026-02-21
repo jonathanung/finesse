@@ -200,16 +200,38 @@ In decomposed mode: construct a ralph-loop prompt per sub-workflow using the met
 
 ### Validation
 
-Launch ALL 6 validation agents in parallel per the **prompt-validation** skill. Handle verdicts per severity tiers and refinement budget rules defined there. Quick reference:
+Launch ALL 6 validation agents in parallel on the drafted plan using the Task tool. Pass the full plan text in each agent's prompt:
+1. **clarity-checker** — requirements unambiguous for autonomous agent
+2. **completion-validator** — binary criteria, explicit promise
+3. **scope-safety-reviewer** — scope, guardrails, safety
+4. **phase-structure-analyzer** — cold start, phases, verification commands
+5. **failure-mode-auditor** — stuck-state recovery, anti-thrashing
+6. **goal-achievement-auditor** — goal achievement, truth coverage, dependency flow
 
-| Tier | Agents | Behavior |
-|------|--------|----------|
-| **CRITICAL** | scope-safety-reviewer `FAIL` | Blocks unconditionally |
-| **HIGH** | clarity-checker, phase-structure-analyzer, completion-validator `FAIL` | Blocks presentation |
-| **MEDIUM** | goal-achievement-auditor, failure-mode-auditor `FAIL` | Fix within budget; warn if exhausted |
-| **LOW** | Any `NEEDS_REWORK` | Fix if budget allows |
+All agents use the same verdict vocabulary: `PASS`, `FAIL`, or `NEEDS_REWORK`.
 
-Each fix-and-revalidate cycle costs one `--max-refinements` iteration. Re-run ALL 6 agents after fixes to catch regressions. In Multi-Workflow mode, validate each sub-workflow independently.
+Each verdict is classified into a severity tier based on the agent and verdict type:
+
+| Tier | Condition | Behavior |
+|------|-----------|----------|
+| **CRITICAL** | scope-safety-reviewer returns `FAIL` | Blocks presentation unconditionally. Must fix before presenting. |
+| **HIGH** | clarity-checker, phase-structure-analyzer, or completion-validator returns `FAIL` | Blocks presentation. Must fix before presenting. |
+| **MEDIUM** | goal-achievement-auditor or failure-mode-auditor returns `FAIL` | Should fix within refinement budget. Can present with explicit warnings if budget exhausted. |
+| **LOW** | Any agent returns `NEEDS_REWORK` | Fix if budget allows after higher tiers resolved. |
+
+**Handling verdicts:**
+- **All PASS**: Plan is ready to present.
+- **Any CRITICAL or HIGH issues**: Must fix before presenting. Issues requiring user input → ask the user. Issues fixable by you → fix directly.
+- **Any MEDIUM issues**: Fix within refinement budget. If budget exhausted, present with explicit warnings listing each issue, its tier, and which agent flagged it.
+- **Any LOW issues (NEEDS_REWORK)**: Fix if budget allows after higher tiers resolved.
+
+When refinement budget drops below 50% remaining, prioritize CRITICAL and HIGH issues exclusively.
+
+Each fix-and-revalidate cycle costs one refinement iteration against your `--max-refinements` budget. When revalidating after fixes, re-run ALL 6 agents to catch regressions.
+
+If budget exhausted with only MEDIUM/LOW unresolved: present with explicit warnings listing each issue, its severity tier, and which agent flagged it.
+
+In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 6 validators. A CRITICAL or HIGH verdict on any sub-workflow blocks the entire plan.
 
 ### Pre-flight Validation
 
@@ -306,6 +328,7 @@ Note: The presentation is for the user to review. The actual files written on ac
    ## Wave 2 (run after Wave 1 completes)
    /finesse:finesse-execute --prompt-file finesse-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file finesse-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
    ```
+   After presenting the commands, recommend: "For automated parallel wave execution with worktree isolation and merge reconciliation, use `/finesse-waves start <session-name>` instead of running each sub-workflow manually."
 5. Single-workflow output uses the existing flat format (unchanged).
 
 **STOP HERE.** After handling the user's acceptance option (execute, copy, or save), your job is done. Do NOT proceed to implement the plan. Do NOT edit any project files. Do NOT apply the changes described in the prompt. If the user asks you to implement the changes directly (without the execution layer), they must do so outside of a `/finesse` session.

@@ -184,7 +184,7 @@ Maximum 3 refinement cycles per fix-loop prompt.
 **Present all fix-loop prompts** to the user. For each, output:
 ```
 ### Fix <N>: <gap description>
-/ralph-loop:ralph-loop $(cat finesse-plans/<name>-retro-fix-<N>.md) --completion-promise "$(cat finesse-plans/<name>-retro-fix-<N>-promise.txt)" --max-iterations <M>
+/finesse:finesse-execute --prompt-file finesse-plans/<name>-retro-fix-<N>.md --completion-promise-file finesse-plans/<name>-retro-fix-<N>-promise.txt --max-iterations <M>
 ```
 
 Write all fix-loop files to `finesse-plans/`.

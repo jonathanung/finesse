@@ -1,7 +1,7 @@
 ---
 description: "Resume an interrupted Finesse planning session from a working file"
 argument-hint: "[PATH_TO_WORKING_FILE]"
-allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p finesse-plans/*)", "Bash(mkdir -p finesse-plans/**/*)", "Write(finesse-plans/*)", "Write(finesse-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
+allowed-tools: ["Task", "Read", "Glob", "Grep", "Bash(mkdir -p finesse-plans/*)", "Bash(mkdir -p finesse-plans/**/*)", "Write(finesse-plans/*)", "Write(finesse-plans/**/*)", "Bash(mkdir -p .finesse)", "Write(.finesse/*)", "Bash(git rev-parse HEAD)", "Bash(git diff --name-only *)", "Skill", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -399,6 +399,39 @@ If budget exhausted with only MEDIUM/LOW unresolved: present with explicit warni
 
 In Multi-Workflow mode, validate EACH sub-workflow's plan independently with all 6 validators. A CRITICAL or HIGH verdict on any sub-workflow blocks the entire plan.
 
+### Pre-flight Validation
+
+Before presenting the plan, run environment pre-flight checks to verify the execution environment is ready. Collect results as warnings — pre-flight failures are advisory, not blocking, since the user may know things Finesse does not. The one exception is execution layer health: if it fails, the "Execute now" acceptance option must be disabled.
+
+Run these 4 checks in order:
+
+**1. Execution layer health**: Run `/finesse-validate-execute` using the Skill tool. Parse the output:
+- Exit code 0: Set `execution_layer_healthy = true`.
+- Exit code 1: Set `execution_layer_healthy = false`. Record the failure details as a pre-flight warning.
+
+**2. Git tracking**: Run `git rev-parse --git-dir` via Bash. This check exists because `finesse_execute.py` captures a pre-execution git hash for retrospective analysis.
+- Success (exit code 0): Git tracking confirmed.
+- Failure (exit code 128 or non-zero): Record warning: "Workspace is not git-tracked. The execution layer captures a pre-execution git hash for retro — this will fail without git."
+
+**3. Scoped file existence**: Extract the file paths listed in the prompt's scope constraints section (files to modify, files to leave alone). For each path, verify it exists using Glob.
+- All files found: Scoped files confirmed.
+- Missing files: Record warning for each: "Scoped file not found: [path]. The prompt references this file but it does not exist in the workspace."
+
+**4. Verification command runnability**: Extract the verification commands from the prompt's phase Verify: lines (e.g., `npm test`, `pytest`, `make lint`). For each command, check plausibility:
+- If the command starts with `npm`/`npx`/`yarn`/`pnpm`: check that `package.json` exists and the script or binary is referenced.
+- If the command starts with `make`: check that a `Makefile` exists and contains the target.
+- If the command starts with `pytest`/`python`: check that `pyproject.toml` or `setup.py`/`setup.cfg` exists.
+- If the command starts with `cargo`: check that `Cargo.toml` exists.
+- If the command starts with `go`: check that `go.mod` exists.
+- For other commands: skip (assume runnable).
+- Record warning for unverifiable commands: "Verification command may not be runnable: [command]. Could not find [what's missing]."
+
+After all 4 checks, collect warnings into a `pre_flight_warnings` list. If non-empty, include them in the Presentation section under a "Pre-flight warnings" heading.
+
+If `execution_layer_healthy` is false, the Presentation and User Decision sections already handle disabling the "Execute now" option — this behavior is unchanged.
+
+This check is NOT affected by UAT fast-forward — it always runs.
+
 ### Presentation
 
 Present the plan via ExitPlanMode. The plan file must contain:
@@ -424,14 +457,22 @@ Note: The presentation is for the user to review. The actual files written on ac
    - `finesse-plans/<name>-promise.txt` — the completion promise text ONLY (no quotes, no extra content)
    - `finesse-plans/<name>-plan.md` — metadata for human reference: task type, summary, codebase context, chosen approach with rationale, recommended --max-iterations with reasoning, context budget estimate (pressure rating, file breakdown, estimated cost range, disclaimer), unresolved warnings (if any), baseline_commit (git rev-parse HEAD captured before writing plan files), git_config (user's git configuration: checkpointing yes/no, granularity, push yes/no), subagent_enabled (whether subagent instructions were included)
 1.5. Capture baseline commit by running git rev-parse HEAD. Include this as the baseline_commit field in the plan metadata file.
-3. Output the exact command:
-   ```
-   /ralph-loop:ralph-loop $(cat finesse-plans/<name>.md) --completion-promise "$(cat finesse-plans/<name>-promise.txt)" --max-iterations=<N>
-   ```
-   Where `<name>` is the descriptive-kebab-case-name used in the filenames above.
-4. Keep any working file (`finesse-plans/<name>-working.md`) from this planning session for reference.
+3. Present acceptance options via `AskUserQuestion`:
+   - If execution layer is healthy, offer 3 options:
+     1. **Execute now** — Launch the plan immediately via the Finesse execution layer
+     2. **Copy command** — Output the /finesse:finesse-execute command string for manual use
+     3. **Save plan only** — Files are saved; no command output
+   - If execution layer is unhealthy, offer 2 options (with a warning):
+     1. **Copy command** — Output the /finesse:finesse-execute command string for manual use
+     2. **Save plan only** — Files are saved; no command output
+4. Handle the selected option:
+   - **Execute now**: Invoke `/finesse:finesse-execute` using the Skill tool with args `--prompt-file finesse-plans/<name>.md --completion-promise-file finesse-plans/<name>-promise.txt --max-iterations <N>`. The Finesse planning session ends here.
+   - **Copy command**: Output the exact command:
+     `/finesse:finesse-execute --prompt-file finesse-plans/<name>.md --completion-promise-file finesse-plans/<name>-promise.txt --max-iterations <N>`
+   - **Save plan only**: Report "Plan files saved to finesse-plans/. Use `/finesse:finesse-execute --prompt-file finesse-plans/<name>.md --completion-promise-file finesse-plans/<name>-promise.txt --max-iterations <N>` when ready to execute."
+5. Keep any working file (`finesse-plans/<name>-working.md`) from this planning session for reference.
 
-**IMPORTANT**: The `<name>.md` file must be valid as a direct `$(cat ...)` argument. This means: no markdown metadata headers, no YAML frontmatter, starts directly with the prompt content (e.g., "You are iterating on..."). The file IS the prompt, nothing more.
+**IMPORTANT**: The `<name>.md` file must contain ONLY the prompt text. This means: no markdown metadata headers, no YAML frontmatter, starts directly with the prompt content (e.g., "You are iterating on..."). The file IS the prompt, nothing more.
 
 **If ACCEPTED (Multi-Workflow):**
 1. Create `finesse-plans/<session-name>/` directory
@@ -441,14 +482,18 @@ Note: The presentation is for the user to review. The actual files written on ac
    - `finesse-plans/<session-name>/wave-<N>/<task-name>/plan.md` — sub-workflow metadata (includes baseline_commit, git_config, subagent_enabled in addition to task type, approach, and iteration reasoning)
 1.5. Capture baseline commit by running git rev-parse HEAD. Include this as the baseline_commit field in each sub-workflow's plan metadata file.
 3. Write `finesse-plans/<session-name>/execution-graph.md` with wave structure, dependency rationale, and per-task commands
-4. Output ALL commands grouped by wave:
+4. Present acceptance options via `AskUserQuestion` (same pattern as single-workflow):
+   - If execution layer is healthy, offer 3 options: **Execute now**, **Copy command**, **Save plan only**
+   - If execution layer is unhealthy, offer 2 options: **Copy command**, **Save plan only**
+   Handle the selected option using the per-wave `/finesse:finesse-execute` commands:
    ```
    ## Wave 1 (run in parallel)
-   /ralph-loop:ralph-loop $(cat finesse-plans/<session>/wave-1/<task-1>/prompt.md) --completion-promise "$(cat finesse-plans/<session>/wave-1/<task-1>/promise.txt)" --max-iterations=<N>
+   /finesse:finesse-execute --prompt-file finesse-plans/<session>/wave-1/<task-1>/prompt.md --completion-promise-file finesse-plans/<session>/wave-1/<task-1>/promise.txt --max-iterations <N>
 
    ## Wave 2 (run after Wave 1 completes)
-   /ralph-loop:ralph-loop $(cat finesse-plans/<session>/wave-2/<task>/prompt.md) --completion-promise "$(cat finesse-plans/<session>/wave-2/<task>/promise.txt)" --max-iterations=<N>
+   /finesse:finesse-execute --prompt-file finesse-plans/<session>/wave-2/<task>/prompt.md --completion-promise-file finesse-plans/<session>/wave-2/<task>/promise.txt --max-iterations <N>
    ```
+   For automated parallel wave execution, recommend: "For automated wave execution with parallel worktrees and merge reconciliation, use `/finesse-waves start <session-name>` instead."
 5. Single-workflow output uses the existing flat format (unchanged).
 
 **STOP HERE.** After outputting the command(s), your job is done. Do NOT proceed to implement the plan. Do NOT edit any project files. Do NOT apply the changes described in the prompt. The user will run the ralph-loop command themselves. If the user asks you to implement the changes directly (without ralph-loop), they must do so outside of a `/finesse` session.

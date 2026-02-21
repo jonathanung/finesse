@@ -149,7 +149,7 @@ You don't need to know these to use Finesse — it handles them automatically. T
 
 ### Validation Agents
 
-After constructing a prompt, Finesse launches 5 validation agents **in parallel**. All must pass before the plan is presented to you.
+After constructing a prompt, Finesse launches 6 validation agents **in parallel**. All must pass before the plan is presented to you.
 
 | Agent | Focus | Checks For |
 |---|---|---|
@@ -158,6 +158,7 @@ After constructing a prompt, Finesse launches 5 validation agents **in parallel*
 | **scope-safety-reviewer** | Scope & safety | File boundaries, destructive action guardrails, "Do NOT" rules, iteration limits |
 | **phase-structure-analyzer** | Structural clarity | Cold start paragraph, ordered phases, verification commands, phase independence |
 | **failure-mode-auditor** | Failure handling | Stuck-state instructions, blocked signal, anti-thrashing rules, task-specific risks |
+| **goal-achievement-auditor** | Goal achievement | Truth coverage, dependency flow, phase-to-goal mapping, observable verification |
 
 Each agent returns `PASS`, `FAIL`, or `NEEDS_REWORK`:
 
@@ -211,7 +212,7 @@ For automated wave execution with parallel worktrees, tmux session management, a
 
 If you reject a plan:
 
-- **With feedback:** Finesse's refinement counter resets to zero, giving you a fresh refinement budget. It makes targeted edits (doesn't rebuild from scratch), re-validates with all 5 agents, and re-presents.
+- **With feedback:** Finesse's refinement counter resets to zero, giving you a fresh refinement budget. It makes targeted edits (doesn't rebuild from scratch), re-validates with all 6 agents, and re-presents.
 - **Without feedback:** Finesse asks what specifically needs to change.
 
 You can reject and refine as many times as needed.
@@ -255,7 +256,7 @@ If a task needs more than 25 iterations, Finesse automatically proposes decompos
 
 **Skip Finesse when:**
 - You already have a well-structured prompt
-- The task is trivial (one file, obvious change) - use `/finesse:finesse:mini` instead
+- The task is trivial (one file, obvious change) - use `/finesse:finesse-mini` instead
 
 ## Limitations
 

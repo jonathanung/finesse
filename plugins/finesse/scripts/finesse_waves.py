@@ -107,9 +107,10 @@ class GraphParser:
             )
             if cmd_match and current_tasks:
                 prompt_file = cmd_match.group(1)
-                # Find which task this command belongs to
+                # Find which task this command belongs to using path segment match
+                # to avoid substring collisions (e.g., "auth" matching "auth-endpoints")
                 for task in current_tasks:
-                    if task["name"] in prompt_file:
+                    if f"/{task['name']}/" in prompt_file or prompt_file.endswith(f"/{task['name']}/prompt.md"):
                         task["prompt_file"] = prompt_file
                         break
                 else:
@@ -123,7 +124,7 @@ class GraphParser:
             if promise_match and current_tasks:
                 promise_file = promise_match.group(1)
                 for task in current_tasks:
-                    if task["name"] in promise_file:
+                    if f"/{task['name']}/" in promise_file or promise_file.endswith(f"/{task['name']}/promise.txt"):
                         task["promise_file"] = promise_file
                         break
                 else:
@@ -136,7 +137,7 @@ class GraphParser:
             if max_iter_match and current_tasks:
                 max_iters = int(max_iter_match.group(1))
                 for task in current_tasks:
-                    if task["prompt_file"] and task["name"] in line:
+                    if task["prompt_file"] and (f"/{task['name']}/" in line or task["name"] == line.strip()):
                         task["max_iterations"] = max_iters
                         break
                 else:
@@ -167,10 +168,11 @@ class GraphParser:
 class WorktreeManager:
     """Manage git worktrees for isolated sub-workflow execution."""
 
-    def create(self, session: str, task_name: str, base_branch: str) -> str:
+    def create(self, session: str, task_name: str, base_branch: str) -> tuple:
         """Create a git worktree for a task.
 
-        Returns the absolute worktree path.
+        Returns (worktree_path: str, branch: str) — the absolute worktree path
+        and the actual branch name used (which may have a collision suffix).
         """
         worktree_path = str(
             Path(WORKTREES_DIR) / session / task_name
@@ -210,7 +212,7 @@ class WorktreeManager:
             )
             sys.exit(1)
 
-        return str(Path(worktree_path).resolve())
+        return (str(Path(worktree_path).resolve()), branch)
 
     def remove(self, worktree_path: str, delete_branch: bool = True):
         """Remove a worktree and optionally its branch."""
@@ -225,29 +227,43 @@ class WorktreeManager:
             if result.returncode == 0:
                 branch = result.stdout.strip()
 
-        subprocess.run(
+        wt_result = subprocess.run(
             ["git", "worktree", "remove", worktree_path, "--force"],
             capture_output=True,
             text=True,
         )
+        if wt_result.returncode != 0:
+            print(
+                f"Warning: Failed to remove worktree {worktree_path}: "
+                f"{wt_result.stderr.strip()}",
+                file=sys.stderr,
+            )
 
         if delete_branch and branch:
-            subprocess.run(
+            br_result = subprocess.run(
                 ["git", "branch", "-D", branch],
                 capture_output=True,
                 text=True,
             )
+            if br_result.returncode != 0:
+                print(
+                    f"Warning: Failed to delete branch {branch}: "
+                    f"{br_result.stderr.strip()}",
+                    file=sys.stderr,
+                )
 
     def merge(self, branch: str, base_branch: str) -> tuple:
         """Merge a branch into the base branch.
 
         Returns (success: bool, conflict_details: str).
         """
-        subprocess.run(
+        checkout_result = subprocess.run(
             ["git", "checkout", base_branch],
             capture_output=True,
             text=True,
         )
+        if checkout_result.returncode != 0:
+            return (False, f"Failed to checkout {base_branch}: {checkout_result.stderr.strip()}")
 
         result = subprocess.run(
             ["git", "merge", branch, "--no-edit"],
@@ -326,25 +342,50 @@ class TmuxManager:
         sys.exit(1)
 
     def add_pane(self, session: str, command: str, pane_name: str = "",
-                 is_first: bool = True):
-        """Add a pane to a tmux session and run a command in it."""
+                 is_first: bool = True) -> bool:
+        """Add a pane to a tmux session and run a command in it.
+
+        Returns True if the pane was created and command sent successfully.
+        """
         if is_first:
-            subprocess.run(
+            result = subprocess.run(
                 ["tmux", "send-keys", "-t", session, command, "Enter"],
                 capture_output=True,
                 text=True,
             )
+            if result.returncode != 0:
+                print(
+                    f"Warning: Failed to send command to tmux session {session}: "
+                    f"{result.stderr.strip()}",
+                    file=sys.stderr,
+                )
+                return False
         else:
-            subprocess.run(
+            split_result = subprocess.run(
                 ["tmux", "split-window", "-t", session, "-h"],
                 capture_output=True,
                 text=True,
             )
-            subprocess.run(
+            if split_result.returncode != 0:
+                print(
+                    f"Warning: Failed to split tmux pane in {session}: "
+                    f"{split_result.stderr.strip()}",
+                    file=sys.stderr,
+                )
+                return False
+            result = subprocess.run(
                 ["tmux", "send-keys", "-t", session, command, "Enter"],
                 capture_output=True,
                 text=True,
             )
+            if result.returncode != 0:
+                print(
+                    f"Warning: Failed to send command to tmux pane in {session}: "
+                    f"{result.stderr.strip()}",
+                    file=sys.stderr,
+                )
+                return False
+        return True
 
     def kill_session(self, name: str):
         """Kill a tmux session."""
@@ -545,18 +586,26 @@ class HeadlessDetector:
 
     def get_launch_command(self, mode: str, prompt_text: str,
                            worktree_path: str) -> str:
-        """Return the shell command to launch a claude invocation."""
+        """Return the shell command to launch a claude invocation.
+
+        Writes the prompt to a temp file to avoid ARG_MAX limits on large prompts.
+        """
         quoted_path = shlex.quote(worktree_path)
-        quoted_prompt = shlex.quote(prompt_text)
+
+        # Write prompt to a temp file in the worktree to avoid ARG_MAX limits
+        prompt_file = Path(worktree_path) / ".finesse" / "prompt-input.txt"
+        os.makedirs(prompt_file.parent, exist_ok=True)
+        prompt_file.write_text(prompt_text)
+        quoted_prompt_file = shlex.quote(str(prompt_file))
 
         if mode == "hooks":
-            return f"cd {quoted_path} && claude -p {quoted_prompt}"
+            return f"cd {quoted_path} && claude -p \"$(cat {quoted_prompt_file})\""
 
         # Wrapper mode: loop that checks run-log.json outcome
         return (
             f"cd {quoted_path} && "
             f"while true; do "
-            f"claude -p {quoted_prompt}; "
+            f"claude -p \"$(cat {quoted_prompt_file})\"; "
             f"outcome=$(python3 -c \"import json; "
             f"d=json.load(open('.finesse/run-log.json')); "
             f"print(d.get('outcome',''))\" 2>/dev/null); "
@@ -569,19 +618,6 @@ class HeadlessDetector:
 # ---------------------------------------------------------------------------
 # WaveOrchestrator
 # ---------------------------------------------------------------------------
-
-# Cost estimation table (from meta-prompting skill)
-COST_TABLE = [
-    # (min_iters, max_iters, pressure, low_cost, high_cost)
-    (5, 8, "low", 1, 5),
-    (5, 8, "moderate", 5, 20),
-    (8, 15, "low", 5, 20),
-    (8, 15, "high", 20, 50),
-    (15, 22, "low", 20, 50),
-    (15, 22, "high", 50, 100),
-    (22, 25, "any", 50, 100),
-]
-
 
 def _estimate_cost(est_iterations: int) -> str:
     """Estimate cost range for a given iteration count (low-moderate pressure)."""
@@ -635,9 +671,14 @@ class WaveOrchestrator:
         signal.signal(signal.SIGINT, self._handle_sigint)
 
     def _handle_sigint(self, signum, frame):
-        """Handle SIGINT by setting shutdown flag."""
+        """Handle SIGINT by setting shutdown flag and cleaning up tmux sessions."""
         print("\nReceived interrupt. Finishing current operations...")
         self._shutdown = True
+        # Kill tmux sessions to prevent orphaned Claude instances consuming credits
+        for wave_key, wave_data in self.state.get("waves", {}).items():
+            tmux_name = wave_data.get("tmux_session")
+            if tmux_name:
+                self.tmux_mgr.kill_session(tmux_name)
 
     def dry_run(self) -> bool:
         """Display execution plan and ask for confirmation. Returns True if user confirms."""
@@ -733,12 +774,9 @@ class WaveOrchestrator:
             print(f"  Launching: {task_name}")
 
             # Create worktree
-            worktree_path = self.worktree_mgr.create(
+            worktree_path, branch = self.worktree_mgr.create(
                 self.session, task_name, self.base_branch
             )
-
-            # Record worktree info
-            branch = f"finesse/{task_name}"
             self.state["waves"][wave_key]["workflows"][task_name].update({
                 "status": "running",
                 "worktree_path": worktree_path,
@@ -747,7 +785,11 @@ class WaveOrchestrator:
             })
 
             # Set up state in worktree
-            self.setup_worktree_state(worktree_path, task)
+            if not self.setup_worktree_state(worktree_path, task):
+                print(f"  Failed to set up state for {task_name}. Skipping.")
+                self.state["waves"][wave_key]["workflows"][task_name]["status"] = "failed"
+                self.state["waves"][wave_key]["workflows"][task_name]["outcome"] = "setup_failed"
+                continue
 
             # Read prompt for launch command
             prompt_file = task.get("prompt_file", "")
@@ -770,8 +812,11 @@ class WaveOrchestrator:
         self.session_tracker.save(self.session, self.state)
         print(f"\nWave {wave_num} launched. Attach with: tmux attach -t {tmux_name}")
 
-    def setup_worktree_state(self, worktree_path: str, task: dict):
-        """Set up finesse execution state files in a worktree."""
+    def setup_worktree_state(self, worktree_path: str, task: dict) -> bool:
+        """Set up finesse execution state files in a worktree.
+
+        Returns True if setup succeeded, False otherwise.
+        """
         prompt_file = task.get("prompt_file", "")
         promise_file = task.get("promise_file", "")
         max_iterations = task.get("max_iterations", 0)
@@ -796,23 +841,54 @@ class WaveOrchestrator:
         if not prompt_file:
             cmd.append(f"Execute task: {task.get('name', 'unknown')}")
 
-        subprocess.run(
+        result = subprocess.run(
             cmd,
             cwd=worktree_path,
             capture_output=True,
             text=True,
         )
 
-    def poll_wave(self, wave_num: int, poll_interval: int = None) -> dict:
-        """Poll workflows in a wave until all complete. Returns results dict."""
+        if result.returncode != 0:
+            print(
+                f"  Error setting up state for {task.get('name', 'unknown')}: "
+                f"{result.stderr.strip()}",
+                file=sys.stderr,
+            )
+            return False
+        return True
+
+    def poll_wave(self, wave_num: int, poll_interval: int = None,
+                  timeout: int = 14400) -> dict:
+        """Poll workflows in a wave until all complete. Returns results dict.
+
+        Args:
+            wave_num: Wave number to poll.
+            poll_interval: Seconds between polls (default: DEFAULT_POLL_INTERVAL).
+            timeout: Maximum seconds to poll before giving up (default: 4 hours).
+        """
         if poll_interval is None:
             poll_interval = DEFAULT_POLL_INTERVAL
 
         wave_key = str(wave_num)
         workflows = self.state["waves"][wave_key]["workflows"]
+        start_time = time.monotonic()
 
         while True:
             if self._shutdown:
+                break
+
+            # Timeout check
+            elapsed = time.monotonic() - start_time
+            if elapsed > timeout:
+                print(
+                    f"  Polling timeout ({timeout}s) reached for wave {wave_num}.",
+                    file=sys.stderr,
+                )
+                for task_name, wf in workflows.items():
+                    if wf["outcome"] is None:
+                        wf["outcome"] = "timeout"
+                        wf["status"] = "failed"
+                        wf["finished_at"] = datetime.now(timezone.utc).isoformat()
                 break
 
             all_done = True
@@ -823,6 +899,17 @@ class WaveOrchestrator:
                 # Read run-log.json from worktree
                 worktree_path = wf.get("worktree_path")
                 if not worktree_path:
+                    continue
+
+                # Check if worktree still exists
+                if not Path(worktree_path).is_dir():
+                    print(
+                        f"  {task_name}: worktree deleted, marking as failed.",
+                        file=sys.stderr,
+                    )
+                    wf["outcome"] = "worktree_deleted"
+                    wf["status"] = "failed"
+                    wf["finished_at"] = datetime.now(timezone.utc).isoformat()
                     continue
 
                 run_log_path = Path(worktree_path) / ".finesse" / "run-log.json"

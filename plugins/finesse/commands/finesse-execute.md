@@ -48,7 +48,7 @@ If `$ARGUMENTS` is empty or blank:
 4. If exactly one multi-workflow session found:
    - Read `execution-graph.md` to show the wave structure
    - Present wave-by-wave summary
-   - Say "Multi-workflow plans use `/finesse-waves` for parallel wave execution. Run `/finesse-waves start <session-name>` in your terminal to launch. Use `/finesse-waves status` to monitor progress."
+   - Say "Multi-workflow plans use `/finesse-waves` for parallel wave execution. Run `/finesse-waves start <session-name>` to get the launch command. Use `/finesse-waves status` to monitor progress."
    - Stop.
 
 5. If multiple plans found:

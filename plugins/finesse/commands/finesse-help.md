@@ -174,7 +174,7 @@ Cancel an active Finesse execution loop. Saves telemetry to `.finesse/run-log.js
 
 ### /finesse-validate-execute
 
-Validate the Finesse execution layer. Runs 63 structural and functional checks against the setup script, stop hook, hook registration, and command definitions. Exit code 0 = all checks pass.
+Validate the Finesse execution layer. Runs structural and functional checks against the setup script, stop hook, hook registration, and command definitions. Exit code 0 = all checks pass.
 
 ### /finesse-waves <subcommand> [session-name]
 

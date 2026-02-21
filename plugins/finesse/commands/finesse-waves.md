@@ -79,6 +79,6 @@ Before starting wave execution, ensure:
 
 - The orchestrator runs **outside** Claude Code in a regular terminal
 - Use `attach` to observe running workflows in tmux
-- Use `stop` for graceful shutdown (waits for current iterations to finish)
+- Use `stop` for graceful shutdown (marks session as stopped and kills tmux sessions)
 - Use `cleanup` after completion to remove worktrees and tmux sessions
 - If merge conflicts occur, resolve them manually and run `merge` to retry
