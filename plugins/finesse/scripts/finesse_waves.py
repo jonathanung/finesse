@@ -567,7 +567,538 @@ class HeadlessDetector:
 
 
 # ---------------------------------------------------------------------------
-# Main (argparse stub)
+# WaveOrchestrator
+# ---------------------------------------------------------------------------
+
+# Cost estimation table (from meta-prompting skill)
+COST_TABLE = [
+    # (min_iters, max_iters, pressure, low_cost, high_cost)
+    (5, 8, "low", 1, 5),
+    (5, 8, "moderate", 5, 20),
+    (8, 15, "low", 5, 20),
+    (8, 15, "high", 20, 50),
+    (15, 22, "low", 20, 50),
+    (15, 22, "high", 50, 100),
+    (22, 25, "any", 50, 100),
+]
+
+
+def _estimate_cost(est_iterations: int) -> str:
+    """Estimate cost range for a given iteration count (low-moderate pressure)."""
+    if est_iterations < 5:
+        return "Under $5"
+    if est_iterations <= 8:
+        return "Under $5"
+    if est_iterations <= 15:
+        return "$5-20"
+    if est_iterations <= 22:
+        return "$20-50"
+    return "$50-100+"
+
+
+class WaveOrchestrator:
+    """Orchestrate wave-based execution of multi-workflow plans."""
+
+    def __init__(self, session: str, graph_path: str = None):
+        self.session = session
+        self.graph_parser = GraphParser()
+        self.worktree_mgr = WorktreeManager()
+        self.tmux_mgr = TmuxManager()
+        self.session_tracker = SessionTracker()
+        self.headless_detector = HeadlessDetector()
+        self._shutdown = False
+        self.graph_data = None
+        self.total_waves = 0
+
+        if graph_path:
+            self.graph_data = self.graph_parser.parse(graph_path)
+            self.graph_data["_graph_path"] = graph_path
+            self.total_waves = self.graph_data["overview"]["total_waves"]
+
+            # Determine base branch from current HEAD
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                capture_output=True,
+                text=True,
+            )
+            self.base_branch = result.stdout.strip() if result.returncode == 0 else "main"
+
+            self.state = self.session_tracker.create(
+                session, self.graph_data, self.base_branch
+            )
+        else:
+            self.state = self.session_tracker.load(session)
+            self.base_branch = self.state.get("base_branch", "main")
+            self.total_waves = len(self.state.get("waves", {}))
+
+        # Register signal handler
+        signal.signal(signal.SIGINT, self._handle_sigint)
+
+    def _handle_sigint(self, signum, frame):
+        """Handle SIGINT by setting shutdown flag."""
+        print("\nReceived interrupt. Finishing current operations...")
+        self._shutdown = True
+
+    def dry_run(self) -> bool:
+        """Display execution plan and ask for confirmation. Returns True if user confirms."""
+        overview = self.graph_data["overview"]
+        waves = self.graph_data["waves"]
+
+        print(f"\n=== Finesse Wave Execution: {self.session} ===\n")
+
+        total_low = 0
+        total_high = 0
+
+        for wave in waves:
+            n_tasks = len(wave["tasks"])
+            print(f"Wave {wave['wave_num']} ({n_tasks} workflow{'s' if n_tasks != 1 else ''}):")
+            wave_iters = 0
+            for task in wave["tasks"]:
+                est = task.get("est_iterations", 0)
+                wave_iters += est
+                print(f"  {task['name']}: ~{est} iterations")
+
+            cost_str = _estimate_cost(wave_iters)
+            print(f"  Estimated cost: {cost_str}")
+            # Parse cost range for totals
+            cost_str_clean = cost_str.replace("Under ", "").replace("$", "").replace("+", "")
+            if "-" in cost_str_clean:
+                parts = cost_str_clean.split("-")
+                total_low += int(parts[0])
+                total_high += int(parts[1])
+            else:
+                val = int(cost_str_clean) if cost_str_clean.isdigit() else 5
+                total_low += max(1, val // 2)
+                total_high += val
+            print()
+
+        print(f"Total: {overview['total_workflows']} workflows across {overview['total_waves']} waves")
+        print(f"Estimated total cost: ${total_low}-{total_high}")
+        print("Note: Each worktree is a full working copy of the repository.\n")
+
+        tmux_names = [
+            f"finesse-{self.session}-w{w['wave_num']}" for w in waves
+        ]
+        print(f"tmux sessions: {', '.join(tmux_names)}")
+        print(f"Worktree paths: {WORKTREES_DIR}/{self.session}/...\n")
+
+        try:
+            answer = input("Proceed? [y/N] ").strip()
+        except EOFError:
+            return False
+        return answer.lower() == "y"
+
+    def run_wave(self, wave_num: int):
+        """Launch all tasks in a wave."""
+        wave_key = str(wave_num)
+        wave_data = None
+        for w in self.graph_data["waves"]:
+            if w["wave_num"] == wave_num:
+                wave_data = w
+                break
+
+        if not wave_data:
+            print(f"Error: Wave {wave_num} not found.", file=sys.stderr)
+            return
+
+        # Get launchable tasks (check dependencies for wave > 1)
+        if wave_num > 1:
+            launchable = self.check_dependencies(wave_num)
+        else:
+            launchable = wave_data["tasks"]
+
+        if not launchable:
+            print(f"No launchable tasks in wave {wave_num}.")
+            return
+
+        # Detect headless mode
+        mode = self.headless_detector.detect()
+        self.state["headless_mode"] = mode
+
+        # Create tmux session
+        tmux_name = self.tmux_mgr.create_session(
+            f"finesse-{self.session}-w{wave_num}"
+        )
+        self.state["waves"][wave_key]["tmux_session"] = tmux_name
+        self.state["waves"][wave_key]["status"] = "running"
+        self.state["current_wave"] = wave_num
+
+        is_first_pane = True
+        for task in launchable:
+            if self._shutdown:
+                print("Shutdown requested. Skipping remaining tasks.")
+                break
+
+            task_name = task["name"]
+            print(f"  Launching: {task_name}")
+
+            # Create worktree
+            worktree_path = self.worktree_mgr.create(
+                self.session, task_name, self.base_branch
+            )
+
+            # Record worktree info
+            branch = f"finesse/{task_name}"
+            self.state["waves"][wave_key]["workflows"][task_name].update({
+                "status": "running",
+                "worktree_path": worktree_path,
+                "branch": branch,
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+            # Set up state in worktree
+            self.setup_worktree_state(worktree_path, task)
+
+            # Read prompt for launch command
+            prompt_file = task.get("prompt_file", "")
+            if prompt_file and Path(prompt_file).is_file():
+                prompt_text = Path(prompt_file).read_text().strip()
+            else:
+                prompt_text = f"Execute task: {task_name}"
+
+            # Launch in tmux pane
+            launch_cmd = self.headless_detector.get_launch_command(
+                mode, prompt_text, worktree_path
+            )
+            self.tmux_mgr.add_pane(
+                tmux_name, launch_cmd, pane_name=task_name,
+                is_first=is_first_pane,
+            )
+            is_first_pane = False
+
+        # Save state
+        self.session_tracker.save(self.session, self.state)
+        print(f"\nWave {wave_num} launched. Attach with: tmux attach -t {tmux_name}")
+
+    def setup_worktree_state(self, worktree_path: str, task: dict):
+        """Set up finesse execution state files in a worktree."""
+        prompt_file = task.get("prompt_file", "")
+        promise_file = task.get("promise_file", "")
+        max_iterations = task.get("max_iterations", 0)
+
+        cmd = [
+            sys.executable,
+            str(PLUGIN_ROOT / "scripts" / "finesse_execute.py"),
+        ]
+
+        if prompt_file:
+            abs_prompt = str(Path(prompt_file).resolve())
+            cmd.extend(["--prompt-file", abs_prompt])
+
+        if promise_file:
+            abs_promise = str(Path(promise_file).resolve())
+            cmd.extend(["--completion-promise-file", abs_promise])
+
+        if max_iterations:
+            cmd.extend(["--max-iterations", str(max_iterations)])
+
+        # If no prompt file, provide a minimal inline prompt
+        if not prompt_file:
+            cmd.append(f"Execute task: {task.get('name', 'unknown')}")
+
+        subprocess.run(
+            cmd,
+            cwd=worktree_path,
+            capture_output=True,
+            text=True,
+        )
+
+    def poll_wave(self, wave_num: int, poll_interval: int = None) -> dict:
+        """Poll workflows in a wave until all complete. Returns results dict."""
+        if poll_interval is None:
+            poll_interval = DEFAULT_POLL_INTERVAL
+
+        wave_key = str(wave_num)
+        workflows = self.state["waves"][wave_key]["workflows"]
+
+        while True:
+            if self._shutdown:
+                break
+
+            all_done = True
+            for task_name, wf in workflows.items():
+                if wf["outcome"] is not None:
+                    continue
+
+                # Read run-log.json from worktree
+                worktree_path = wf.get("worktree_path")
+                if not worktree_path:
+                    continue
+
+                run_log_path = Path(worktree_path) / ".finesse" / "run-log.json"
+                if not run_log_path.is_file():
+                    all_done = False
+                    continue
+
+                try:
+                    run_log = json.loads(run_log_path.read_text())
+                except (json.JSONDecodeError, OSError):
+                    all_done = False
+                    continue
+
+                outcome = run_log.get("outcome")
+                if outcome is not None:
+                    wf["outcome"] = outcome
+                    wf["finished_at"] = datetime.now(timezone.utc).isoformat()
+                    wf["iteration"] = run_log.get("final_iteration", 0)
+                    wf["status"] = "completed" if outcome == "completed" else "failed"
+                    print(f"  {task_name}: {outcome} (iteration {wf['iteration']})")
+                else:
+                    all_done = False
+                    # Update iteration count from live data
+                    wf["iteration"] = len(run_log.get("iterations", []))
+
+            self.session_tracker.save(self.session, self.state)
+
+            if all_done:
+                break
+
+            time.sleep(poll_interval)
+
+        return {
+            name: {"outcome": wf["outcome"], "iteration": wf["iteration"]}
+            for name, wf in workflows.items()
+        }
+
+    def reconcile_wave(self, wave_num: int) -> bool:
+        """Merge completed workflow branches back into base. Returns True if all succeed."""
+        wave_key = str(wave_num)
+        workflows = self.state["waves"][wave_key]["workflows"]
+
+        for task_name, wf in workflows.items():
+            if wf.get("status") == "failed" or wf.get("status") == "skipped":
+                continue
+            if wf.get("outcome") != "completed":
+                continue
+
+            branch = wf.get("branch", f"finesse/{task_name}")
+            print(f"  Merging {branch} into {self.base_branch}...")
+
+            success, conflicts = self.worktree_mgr.merge(branch, self.base_branch)
+            if not success:
+                print(f"  CONFLICT in {branch}:")
+                print(f"    {conflicts}")
+                wf["merge_status"] = "conflict"
+                self.session_tracker.save(self.session, self.state)
+                return False
+
+            wf["merge_status"] = "merged"
+            print(f"  Merged {branch} successfully.")
+
+        self.session_tracker.save(self.session, self.state)
+        return True
+
+    def check_dependencies(self, wave_num: int) -> list:
+        """Check task dependencies against prior wave results. Returns launchable tasks."""
+        wave_data = None
+        for w in self.graph_data["waves"]:
+            if w["wave_num"] == wave_num:
+                wave_data = w
+                break
+
+        if not wave_data:
+            return []
+
+        # Build set of completed tasks from prior waves
+        completed_tasks = set()
+        for wn in range(1, wave_num):
+            wk = str(wn)
+            if wk in self.state["waves"]:
+                for name, wf in self.state["waves"][wk]["workflows"].items():
+                    if wf.get("outcome") == "completed":
+                        completed_tasks.add(name)
+
+        launchable = []
+        for task in wave_data["tasks"]:
+            deps_str = task.get("dependencies", "none")
+            if deps_str.lower() in ("none", "", "-"):
+                launchable.append(task)
+                continue
+
+            deps = [d.strip() for d in deps_str.split(",")]
+            failed_deps = [d for d in deps if d and d not in completed_tasks]
+            if failed_deps:
+                print(f"  Skipping {task['name']}: dependencies not met ({', '.join(failed_deps)})")
+                wave_key = str(wave_num)
+                if task["name"] in self.state["waves"][wave_key]["workflows"]:
+                    self.state["waves"][wave_key]["workflows"][task["name"]]["status"] = "skipped"
+                    self.state["waves"][wave_key]["workflows"][task["name"]]["outcome"] = "skipped"
+            else:
+                launchable.append(task)
+
+        return launchable
+
+    def stop(self):
+        """Gracefully stop the session."""
+        self._shutdown = True
+        self.state["status"] = "stopped"
+        self.state["finished_at"] = datetime.now(timezone.utc).isoformat()
+        self.session_tracker.save(self.session, self.state)
+
+
+# ---------------------------------------------------------------------------
+# Subcommand handlers
+# ---------------------------------------------------------------------------
+
+def cmd_start(args):
+    """Start wave execution for a session."""
+    session = args.session_name
+    graph_path = f"finesse-plans/{session}/execution-graph.md"
+
+    if not Path(graph_path).is_file():
+        print(
+            f"Error: Execution graph not found: {graph_path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    orchestrator = WaveOrchestrator(session, graph_path)
+
+    if not orchestrator.dry_run():
+        print("Aborted.")
+        sys.exit(0)
+
+    for wave_num in range(1, orchestrator.total_waves + 1):
+        if orchestrator._shutdown:
+            break
+
+        print(f"\n--- Wave {wave_num} ---")
+        orchestrator.run_wave(wave_num)
+
+        print(f"\nPolling wave {wave_num}...")
+        results = orchestrator.poll_wave(
+            wave_num,
+            poll_interval=args.poll_interval,
+        )
+
+        print(f"\nReconciling wave {wave_num}...")
+        if not orchestrator.reconcile_wave(wave_num):
+            print(
+                f"\nMerge conflicts in wave {wave_num}. "
+                f"Resolve manually and run: finesse-waves merge {session}"
+            )
+            break
+
+    if not orchestrator._shutdown:
+        orchestrator.state["status"] = "completed"
+        orchestrator.state["finished_at"] = datetime.now(timezone.utc).isoformat()
+        orchestrator.session_tracker.save(session, orchestrator.state)
+        print("\nWave execution complete.")
+    else:
+        print("\nWave execution stopped by user.")
+
+
+def cmd_status(args):
+    """Show status of active wave sessions."""
+    tracker = SessionTracker()
+    active = tracker.list_active()
+
+    if not active:
+        print("No active wave sessions.")
+        sys.exit(0)
+
+    for state in active:
+        session = state["session_name"]
+        status = state["status"]
+        current_wave = state["current_wave"]
+        print(f"\n{session} [{status}] — wave {current_wave}")
+
+        for wave_key, wave_data in state["waves"].items():
+            wave_status = wave_data["status"]
+            if wave_status in ("running", "completed", "partial"):
+                print(f"  Wave {wave_key} ({wave_status}):")
+                for task_name, wf in wave_data["workflows"].items():
+                    wf_status = wf["status"]
+                    iteration = wf.get("iteration", 0)
+                    max_iters = wf.get("max_iterations", 0)
+                    outcome = wf.get("outcome", "")
+
+                    # Try reading live iteration from worktree run-log
+                    worktree_path = wf.get("worktree_path")
+                    if worktree_path and wf_status == "running":
+                        run_log_path = Path(worktree_path) / ".finesse" / "run-log.json"
+                        if run_log_path.is_file():
+                            try:
+                                rl = json.loads(run_log_path.read_text())
+                                iteration = len(rl.get("iterations", []))
+                                live_outcome = rl.get("outcome")
+                                if live_outcome:
+                                    outcome = live_outcome
+                            except (json.JSONDecodeError, OSError):
+                                pass
+
+                    iter_str = f"iter {iteration}/{max_iters}" if max_iters else f"iter {iteration}"
+                    outcome_str = f" -> {outcome}" if outcome else ""
+                    print(f"    {task_name}: {wf_status} ({iter_str}){outcome_str}")
+
+
+def cmd_attach(args):
+    """Attach to tmux session for observation."""
+    tracker = SessionTracker()
+    state = tracker.load(args.session_name)
+    current_wave = state["current_wave"]
+    wave_key = str(current_wave)
+
+    tmux_name = state["waves"].get(wave_key, {}).get("tmux_session")
+    if not tmux_name:
+        print(
+            f"Error: No tmux session found for wave {current_wave}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    tmux_mgr = TmuxManager()
+    if not tmux_mgr.session_exists(tmux_name):
+        print(f"Error: tmux session '{tmux_name}' does not exist.", file=sys.stderr)
+        sys.exit(1)
+
+    tmux_mgr.attach(tmux_name)
+
+
+def cmd_stop(args):
+    """Gracefully stop a wave session."""
+    orchestrator = WaveOrchestrator(args.session_name)
+    orchestrator.stop()
+    print(f"Session {args.session_name} stopped.")
+
+
+def cmd_cleanup(args):
+    """Remove worktrees and tmux sessions for a completed session."""
+    session = args.session_name
+    tracker = SessionTracker()
+    state = tracker.load(session)
+
+    tmux_mgr = TmuxManager()
+    worktree_mgr = WorktreeManager()
+
+    # Kill tmux sessions
+    for wave_data in state["waves"].values():
+        tmux_name = wave_data.get("tmux_session")
+        if tmux_name:
+            tmux_mgr.kill_session(tmux_name)
+
+    # Remove worktrees
+    worktree_mgr.cleanup_session(session)
+
+    # Remove session file
+    Path(f"{SESSIONS_DIR}/{session}.json").unlink(missing_ok=True)
+    print(f"Cleaned up session {session}.")
+
+
+def cmd_merge(args):
+    """Manually trigger merge reconciliation."""
+    orchestrator = WaveOrchestrator(args.session_name)
+    state = orchestrator.session_tracker.load(args.session_name)
+    current_wave = state["current_wave"]
+
+    if orchestrator.reconcile_wave(current_wave):
+        print(f"Wave {current_wave} merged successfully.")
+    else:
+        print("Merge conflicts remain. Resolve and retry.")
+
+
+# ---------------------------------------------------------------------------
+# Main
 # ---------------------------------------------------------------------------
 
 def main():
@@ -582,15 +1113,56 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("start", help="Start wave execution for a session")
-    subparsers.add_parser("status", help="Show status of active wave sessions")
-    subparsers.add_parser("attach", help="Attach to tmux session for observation")
-    subparsers.add_parser("stop", help="Gracefully stop a wave session")
-    subparsers.add_parser("cleanup", help="Remove worktrees and tmux sessions")
-    subparsers.add_parser("merge", help="Manually trigger merge reconciliation")
+    start_parser = subparsers.add_parser(
+        "start", help="Start wave execution for a session"
+    )
+    start_parser.add_argument(
+        "session_name", help="Session name (matches finesse-plans/<session>/)"
+    )
+
+    subparsers.add_parser(
+        "status", help="Show status of active wave sessions"
+    )
+
+    attach_parser = subparsers.add_parser(
+        "attach", help="Attach to tmux session for observation"
+    )
+    attach_parser.add_argument(
+        "session_name", help="Session name to attach to"
+    )
+
+    stop_parser = subparsers.add_parser(
+        "stop", help="Gracefully stop a wave session"
+    )
+    stop_parser.add_argument(
+        "session_name", help="Session name to stop"
+    )
+
+    cleanup_parser = subparsers.add_parser(
+        "cleanup", help="Remove worktrees and tmux sessions"
+    )
+    cleanup_parser.add_argument(
+        "session_name", help="Session name to clean up"
+    )
+
+    merge_parser = subparsers.add_parser(
+        "merge", help="Manually trigger merge reconciliation"
+    )
+    merge_parser.add_argument(
+        "session_name", help="Session name to merge"
+    )
 
     args = parser.parse_args()
-    print(f"Subcommand '{args.command}' not yet implemented.")
+
+    dispatch = {
+        "start": cmd_start,
+        "status": cmd_status,
+        "attach": cmd_attach,
+        "stop": cmd_stop,
+        "cleanup": cmd_cleanup,
+        "merge": cmd_merge,
+    }
+    dispatch[args.command](args)
 
 
 if __name__ == "__main__":
