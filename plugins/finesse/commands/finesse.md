@@ -62,6 +62,65 @@ Classify using the Task Type Detection table in the **task-workflows** skill: fe
 
 Once classified, follow the corresponding workflow from the **task-workflows** skill. That skill is the authoritative source for phase-by-phase instructions. The summary below is for quick reference only.
 
+## Step 1.5: Initialize Session — MANDATORY BEFORE ANY PHASE WORK
+
+IMMEDIATELY after classifying the task type, before doing anything else:
+
+1. Choose a session name (short kebab-case slug, e.g., `fix-scoring-play` or `add-dark-mode`)
+2. Create the finesse-plans directory: `mkdir -p finesse-plans`
+3. Write the working file to `finesse-plans/<name>-working.md` with this exact structure:
+
+```yaml
+---
+mode: planning-only
+task_type: <classified type>
+current_phase: <first phase code, e.g., B1 for bugfix>
+completed_phases: []
+uat_fast_forward: false
+decomposed: false
+---
+```
+
+```markdown
+## Session Constraints (DO NOT DELETE)
+- PLANNING-ONLY session. NEVER edit source code.
+- Follow ALL phases in order for task type: <type>
+- Present UAT checkpoints at every [UAT] phase
+- NEXT ACTION: Proceed to Phase 1
+```
+
+**CRITICAL**: You MUST create this working file BEFORE doing any phase work. A task-guard hook enforces that only Finesse-specific agents can be used during this session. The phase-gate hook blocks ExitPlanMode if `completed_phases` is incomplete. These hooks WILL block you if you skip this step.
+
+## Step 2: Execute Phase 1 — Talk to the User FIRST
+
+Phase 1 is ALWAYS a deep interaction with the user. Do NOT launch agents. Do NOT explore the codebase yet. TALK TO THE USER FIRST.
+
+Your first action depends on your task type:
+
+- **Feature (F1 Discovery)**: Ask the user: What problem does this solve? What constraints exist? What edge cases? How do they envision it working? Ask at least 3 clarifying questions. Do NOT proceed until the user confirms your understanding.
+- **Bugfix (B1 Bug Understanding)**: Ask the user: What's the expected behavior? What's the actual behavior? Steps to reproduce? When did it start? Error messages? Do NOT proceed until you have a clear reproduction path.
+- **Refactor (R1 Scope Definition)**: Ask the user: What code needs refactoring? Why? What's the target end state? What must NOT change? Do NOT proceed until scope is clearly defined.
+- **Testing (T1 Coverage Analysis)**: Exception — T1 starts with exploration. Launch `finesse:exploration-orchestrator` to find existing tests. Then ask the user about priority areas and coverage goals.
+- **Performance (P1 Problem Definition)**: Ask the user: What's slow? How slow (measured)? What's the target? How to measure? What trade-offs are acceptable? Do NOT proceed until the target is concrete.
+- **Research (RE1 Goal Definition)**: Ask the user: What is the research question? What's the deliverable format? Scope boundaries? Audience? Do NOT proceed until the question has a clear "done" state.
+
+After Phase 1 is confirmed by the user, UPDATE the working file:
+1. Add the phase code to `completed_phases` (e.g., `completed_phases: [B1]`)
+2. Update `current_phase` to the next phase (e.g., `current_phase: B2`)
+3. Update NEXT ACTION to describe the next phase
+
+## Step 3: Execute Remaining Phases
+
+Proceed through remaining phases for your task type. For EVERY phase:
+
+1. **Do the work** — use the appropriate Finesse agent via Task tool (e.g., `finesse:exploration-orchestrator` for exploration phases, `finesse:scope-analyzer` for scope analysis, `finesse:architecture-designer` for architecture)
+2. **Present UAT checkpoint** if the phase is marked [UAT] — use AskUserQuestion with 4 options: Accept / Provide feedback / Make specific changes / Accept and skip remaining UAT
+3. **Update the working file** — add the completed phase to `completed_phases`, update `current_phase`
+
+**Phase 2 is exploration** for most task types. Use `finesse:exploration-orchestrator` via the Task tool (NOT generic Explore or Plan agents). After it returns, present findings at a [UAT] checkpoint.
+
+**CRITICAL**: After EVERY phase, update the working file before proceeding. The phase-gate hook checks `completed_phases` at ExitPlanMode.
+
 ---
 
 ## Workflow Quick Reference
@@ -84,7 +143,11 @@ Phases marked `(deep)` require thorough probing before proceeding. Phases marked
 
 ## STOP — Phase Gate Check
 
-Before proceeding to Plan Construction, verify you have completed ALL preceding phases for your task type. Check the Workflow Quick Reference above. If ANY phase was skipped, STOP and go back to the first skipped phase. The phase-gate hook WILL block ExitPlanMode if phases are missing from the working file's `completed_phases`.
+Before proceeding to Plan Construction, verify you have completed ALL preceding phases for your task type. Check the Workflow Quick Reference above. If ANY phase was skipped, STOP and go back to the first skipped phase.
+
+**Enforcement**: The phase-gate hook WILL block ExitPlanMode if phases are missing from the working file's `completed_phases`. The task-guard hook WILL block any Task tool call using non-Finesse agent types. You MUST use `finesse:*` agent types (e.g., `finesse:exploration-orchestrator`, `finesse:code-explorer`, `finesse:scope-analyzer`).
+
+**Working File Check**: Read your working file (`finesse-plans/<name>-working.md`) now. Verify that `completed_phases` lists ALL phases you have completed so far. If any are missing, update the file before continuing.
 
 ---
 
