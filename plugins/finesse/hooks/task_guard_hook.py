@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 SESSION_MARKER = ".finesse/.planning-session"
+LOOP_STATE = ".finesse/loop-state.md"  # Present during execution — skip enforcement
 SESSION_TTL = 7200  # 2 hours — match phase_gate_hook
 
 LOG_PREFIX = "[finesse:task-guard]"
@@ -85,7 +86,13 @@ def main():
     if tool_name != "Task":
         sys.exit(0)
 
-    # Only enforce during active Finesse sessions
+    # Skip enforcement during execution loops — the ralph-loop prompt may
+    # legitimately use generic agents (Explore, Bash, general-purpose) via
+    # its subagent instructions.
+    if Path(LOOP_STATE).exists():
+        sys.exit(0)
+
+    # Only enforce during active Finesse planning sessions
     marker = Path(SESSION_MARKER)
     if not marker.exists():
         sys.exit(0)
