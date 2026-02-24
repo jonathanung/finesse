@@ -640,11 +640,12 @@ class HeadlessDetector:
         quoted_prompt_file = shlex.quote(str(prompt_file))
 
         if mode == "hooks":
-            return f"cd {quoted_path} && claude -p \"$(cat {quoted_prompt_file})\""
+            return f"cd {quoted_path} && unset CLAUDECODE && claude -p \"$(cat {quoted_prompt_file})\""
 
         # Wrapper mode: loop that checks run-log.json outcome
         return (
             f"cd {quoted_path} && "
+            f"unset CLAUDECODE && "
             f"while true; do "
             f"claude -p \"$(cat {quoted_prompt_file})\"; "
             f"outcome=$(python3 -c \"import json; "
@@ -723,7 +724,7 @@ class WaveOrchestrator:
         # Kill any orphaned claude processes that survived tmux SIGHUP
         _kill_session_claude_processes(self.state)
 
-    def dry_run(self) -> bool:
+    def dry_run(self, auto_confirm: bool = False) -> bool:
         """Display execution plan and ask for confirmation. Returns True if user confirms."""
         overview = self.graph_data["overview"]
         waves = self.graph_data["waves"]
@@ -765,6 +766,10 @@ class WaveOrchestrator:
         ]
         print(f"tmux sessions: {', '.join(tmux_names)}")
         print(f"Worktree paths: {WORKTREES_DIR}/{self.session}/...\n")
+
+        if auto_confirm:
+            print("Proceed? [y/N] y (auto-confirmed)\n")
+            return True
 
         try:
             answer = input("Proceed? [y/N] ").strip()
@@ -1186,7 +1191,7 @@ def cmd_start(args):
 
     orchestrator = WaveOrchestrator(session, graph_path)
 
-    if not orchestrator.dry_run():
+    if not orchestrator.dry_run(auto_confirm=getattr(args, "yes", False)):
         print("Aborted.")
         sys.exit(0)
 
@@ -1353,6 +1358,11 @@ def main():
     )
     start_parser.add_argument(
         "session_name", help="Session name (matches finesse-plans/<session>/)"
+    )
+    start_parser.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        help="Skip confirmation prompt (auto-accept)",
     )
 
     subparsers.add_parser(

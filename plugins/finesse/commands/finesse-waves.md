@@ -41,7 +41,13 @@ Usage:
 
 ### If subcommand is recognized:
 
-Execute the waves orchestrator directly via Bash:
+Execute the waves orchestrator directly via Bash. For the `start` subcommand, always pass `--yes` to skip the interactive confirmation prompt (since stdin piping does not work reliably from within Claude Code):
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_waves.py" start --yes <session-name>
+```
+
+For other subcommands (status, stop, cleanup, merge, attach):
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_waves.py" <subcommand> <session-name>
