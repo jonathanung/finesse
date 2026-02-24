@@ -6,4 +6,4 @@ description: "Show the current Finesse plugin version"
 
 Respond with:
 
-**Finesse v1.2.5**
+**Finesse v1.2.6**

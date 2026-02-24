@@ -640,14 +640,14 @@ class HeadlessDetector:
         quoted_prompt_file = shlex.quote(str(prompt_file))
 
         if mode == "hooks":
-            return f"cd {quoted_path} && unset CLAUDECODE && claude -p \"$(cat {quoted_prompt_file})\""
+            return f"cd {quoted_path} && unset CLAUDECODE && claude -p --dangerously-skip-permissions \"$(cat {quoted_prompt_file})\""
 
         # Wrapper mode: loop that checks run-log.json outcome
         return (
             f"cd {quoted_path} && "
             f"unset CLAUDECODE && "
             f"while true; do "
-            f"claude -p \"$(cat {quoted_prompt_file})\"; "
+            f"claude -p --dangerously-skip-permissions \"$(cat {quoted_prompt_file})\"; "
             f"outcome=$(python3 -c \"import json; "
             f"d=json.load(open('.finesse/run-log.json')); "
             f"print(d.get('outcome',''))\" 2>/dev/null); "
