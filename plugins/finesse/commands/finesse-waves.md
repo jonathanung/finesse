@@ -1,14 +1,14 @@
 ---
 description: "Wave execution orchestration for multi-workflow plans"
 argument-hint: "<subcommand> [session-name]"
-allowed-tools: ["Read(.finesse/*)", "Glob(finesse-plans/*)"]
+allowed-tools: ["Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/finesse_waves.py:*)", "Read(.finesse/*)", "Glob(finesse-plans/*)"]
 ---
 
 # Finesse Waves
 
 Wave execution orchestration for multi-workflow plans. Launches parallel sub-workflows in isolated git worktrees via tmux, monitors completion, and handles merge reconciliation.
 
-This command outputs terminal commands for you to run directly — the orchestrator runs outside Claude Code.
+This command executes the waves orchestrator directly via Bash.
 
 ## Determine Plugin Root
 
@@ -41,31 +41,13 @@ Usage:
 
 ### If subcommand is recognized:
 
-Output the exact terminal command for the user to copy-paste:
+Execute the waves orchestrator directly via Bash:
 
 ```
-Run this in your terminal:
-
-python3 <plugin-root>/scripts/finesse_waves.py <subcommand> <session-name>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_waves.py" <subcommand> <session-name>
 ```
 
-Where `<plugin-root>` is resolved to the absolute path of `plugins/finesse/` (or `${CLAUDE_PLUGIN_ROOT}`).
-
-### Examples:
-
-For `/finesse-waves start my-api-project`:
-```
-Run this in your terminal:
-
-python3 /path/to/plugins/finesse/scripts/finesse_waves.py start my-api-project
-```
-
-For `/finesse-waves status`:
-```
-Run this in your terminal:
-
-python3 /path/to/plugins/finesse/scripts/finesse_waves.py status
-```
+Where `<subcommand>` and `<session-name>` are taken from `$ARGUMENTS`.
 
 ## Prerequisites
 
@@ -77,7 +59,7 @@ Before starting wave execution, ensure:
 
 ## Notes
 
-- The orchestrator runs **outside** Claude Code in a regular terminal
+- The orchestrator is launched via Bash from within Claude Code
 - Use `attach` to observe running workflows in tmux
 - Use `stop` for graceful shutdown (marks session as stopped and kills tmux sessions)
 - Use `cleanup` after completion to remove worktrees and tmux sessions

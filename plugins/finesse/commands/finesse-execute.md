@@ -1,7 +1,7 @@
 ---
 description: "Launch a Finesse-managed ralph loop from a plan or inline prompt"
 argument-hint: "[--prompt-file PATH] [--completion-promise-file PATH] [--max-iterations N] [PROMPT...]"
-allowed-tools: ["Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py:*)", "Read(finesse-plans/*)", "Read(finesse-plans/**/*)", "Read(.finesse/*)", "Glob(finesse-plans/*)", "Glob(finesse-plans/**/*)", "AskUserQuestion"]
+allowed-tools: ["Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/finesse_execute.py:*)", "Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/finesse_waves.py:*)", "Read(finesse-plans/*)", "Read(finesse-plans/**/*)", "Read(.finesse/*)", "Glob(finesse-plans/*)", "Glob(finesse-plans/**/*)", "AskUserQuestion"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -48,7 +48,11 @@ If `$ARGUMENTS` is empty or blank:
 4. If exactly one multi-workflow session found:
    - Read `execution-graph.md` to show the wave structure
    - Present wave-by-wave summary
-   - Say "Multi-workflow plans use `/finesse-waves` for parallel wave execution. Run `/finesse-waves start <session-name>` to get the launch command. Use `/finesse-waves status` to monitor progress."
+   - Ask: "Execute this multi-workflow plan? [Yes / No]"
+   - On Yes: execute the waves orchestrator directly via Bash:
+     ```
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/finesse_waves.py" start <session-name>
+     ```
    - Stop.
 
 5. If multiple plans found:
